@@ -8,7 +8,6 @@ import { type AgentSelfStatusSnapshot, client } from "../api-client";
 import { createTranslator } from "../i18n";
 import { ConversationListItem } from "./conversations/ConversationListItem";
 import { GameModalFooter } from "./conversations/GameModalFooter";
-import { PolymarketActivityPanel } from "./PolymarketActivityPanel";
 
 export type ConversationsSidebarVariant = "default" | "game-modal";
 export const SELF_STATUS_SYNC_EVENT = "milady:self-status-refresh";
@@ -243,9 +242,6 @@ export function ConversationsSidebar({
           ))
         )}
       </div>
-
-      {/* Polymarket betting activity */}
-      {isGameModal && <PolymarketActivityPanel />}
 
       {/* Game-modal footer: AI provider, capabilities, token usage */}
       {isGameModal && (
