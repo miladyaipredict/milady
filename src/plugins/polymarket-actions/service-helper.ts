@@ -23,6 +23,7 @@ export interface PolymarketServiceLike {
   getAccountState(): Promise<AccountStateLike | null>;
   getAuthenticationStatus(): AuthStatusLike;
   invalidateAccountState?(): void;
+  updateConditionalBalances?(assetIds: string[]): Promise<void>;
 }
 
 export interface ClobClientLike {
@@ -164,7 +165,14 @@ export async function fetchGammaMarket(
   const res = await fetch(url, { signal: AbortSignal.timeout(GAMMA_FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = (await res.json()) as GammaMarket[];
-  return data[0] ?? null;
+  // Gamma API returns 20 random markets for unrecognized condition_ids.
+  // Validate that the returned market actually matches our query.
+  const match = data.find(
+    (m) =>
+      (m.condition_id ?? m.conditionId ?? "").toLowerCase() ===
+      conditionId.toLowerCase(),
+  );
+  return match ?? null;
 }
 
 export async function fetchGammaMarketBySlug(
