@@ -255,10 +255,32 @@ export async function ensureXvfb(
         detached: true,
       },
     );
-    xvfb.unref();
 
-    // Wait for Xvfb to be ready
-    await new Promise((r) => setTimeout(r, 1000));
+    // Catch spawn errors (e.g. ENOENT when Xvfb is not installed) so they
+    // don't surface as uncaught exceptions after the process is unref'd.
+    const spawnOk = await new Promise<boolean>((resolve) => {
+      let settled = false;
+      xvfb.on("error", (err) => {
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
+        logger.warn(`[stream] Xvfb spawn error: ${err}`);
+      });
+      // Give Xvfb a moment to either fail or start up
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(true);
+        }
+      }, 1000);
+    });
+
+    if (!spawnOk) {
+      return false;
+    }
+
+    xvfb.unref();
     logger.info(`[stream] Started Xvfb on display ${display} (${resolution})`);
     process.env.DISPLAY = display;
     return true;

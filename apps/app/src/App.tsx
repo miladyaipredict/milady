@@ -37,6 +37,7 @@ import { SaveCommandModal } from "./components/SaveCommandModal";
 import { SettingsView } from "./components/SettingsView";
 import { StartupFailureView } from "./components/StartupFailureView";
 import { StreamView } from "./components/StreamView";
+import { TraderShell } from "./components/TraderShell";
 import { SystemWarningBanner } from "./components/SystemWarningBanner";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -71,6 +72,8 @@ function ViewRouter() {
         return <ChatView />;
       case "companion":
         return COMPANION_ENABLED ? <CompanionView /> : <ChatView />;
+      case "trader":
+        return <ChatView />;
       case "stream":
         return <StreamView />;
       case "apps":
@@ -134,7 +137,9 @@ export function App() {
       ? "chat"
       : shellMode === "companion" && tab === "chat"
         ? "companion"
-        : tab;
+        : shellMode === "trader" && tab !== "trader"
+          ? "trader"
+          : tab;
   const contextMenu = useContextMenu();
 
   // When the stream is popped out, navigate away; when closed, navigate back.
@@ -394,6 +399,19 @@ export function App() {
             {actionNotice.text}
           </div>
         )}
+      </BugReportProvider>
+    );
+  }
+
+  /* ── Trader shell mode ───────────────────────────────────────────── */
+  if (shellMode === "trader") {
+    return (
+      <BugReportProvider value={bugReport}>
+        <TraderShell tab={effectiveTab} actionNotice={actionNotice} />
+        <CommandPalette />
+        <RestartBanner />
+        <MemoryDebugPanel />
+        <BugReportModal />
       </BugReportProvider>
     );
   }

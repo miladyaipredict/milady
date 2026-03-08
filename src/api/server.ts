@@ -139,7 +139,10 @@ import {
   sendJson,
   sendJsonError,
 } from "./http-helpers";
+import { handleAlphaScanRoutes } from "./alpha-scan-routes";
 import { handleKnowledgeRoutes } from "./knowledge-routes";
+import { handleLimitlessRoutes } from "./limitless-routes";
+import { handleTradingRoutes } from "./trading-routes";
 import {
   evictOldestConversation,
   getOrReadCachedFile,
@@ -7303,6 +7306,48 @@ async function handleRequest(
       pathname,
       json,
       error,
+    })
+  ) {
+    return;
+  }
+
+  if (
+    await handleLimitlessRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      json,
+      error,
+      readJsonBody,
+    })
+  ) {
+    return;
+  }
+
+  if (
+    await handleTradingRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      json,
+      error,
+    })
+  ) {
+    return;
+  }
+
+  if (
+    await handleAlphaScanRoutes({
+      req,
+      res,
+      method,
+      pathname,
+      json,
+      error,
+      readJsonBody,
+      runtime: state.runtime,
     })
   ) {
     return;
@@ -15601,6 +15646,17 @@ export async function startApiServer(opts?: {
       }
     }
   };
+
+  // Hook Limitless WS service into the broadcast system (lazy, no hard dep).
+  try {
+    import("../plugins/limitless/services/limitless-ws.js").then((mod) => {
+      const svc = mod.getLimitlessWsService?.();
+      if (svc && state.broadcastWs) {
+        svc.setBroadcast(state.broadcastWs);
+        console.info("[milady-api] Limitless WS price broadcast attached");
+      }
+    }).catch(() => { /* plugin not loaded, ignore */ });
+  } catch { /* ignore */ }
 
   state.broadcastWsToClientId = (
     clientId: string,

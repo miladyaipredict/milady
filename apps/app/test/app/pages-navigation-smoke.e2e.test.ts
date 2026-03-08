@@ -293,6 +293,7 @@ describe("pages navigation smoke (e2e)", () => {
     const expectedByPrimaryTab: Record<Tab, string> = {
       chat: "ChatView Ready",
       companion: "CompanionView Ready",
+      trader: "ChatView Ready",
       stream: "StreamView Ready",
       character: "CharacterView Ready",
       wallets: "InventoryView Ready",

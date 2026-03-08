@@ -644,6 +644,12 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   piAi: PI_AI_PLUGIN_PACKAGE,
   x402: "@elizaos/plugin-x402",
   "coding-agent": "@elizaos/plugin-agent-orchestrator",
+  evm: "@elizaos/plugin-evm",
+  solana: "@elizaos/plugin-solana",
+  polymarket: "@elizaos/plugin-polymarket",
+  "auto-trader": "@elizaos/plugin-auto-trader",
+  autoTrader: "@elizaos/plugin-auto-trader",
+  rss: "@elizaos/plugin-rss",
   "streaming-base": "@milady/plugin-streaming-base",
   "twitch-streaming": "@milady/plugin-twitch-streaming",
   "youtube-streaming": "@milady/plugin-youtube-streaming",
@@ -963,6 +969,30 @@ export function collectPluginNames(config: MiladyConfig): Set<string> {
   // provider, and would be incorrectly removed during provider precedence.
   if (process.env.OPINION_API_KEY?.trim()) {
     pluginsToLoad.add("@milady/plugin-opinion");
+  }
+
+  if (process.env.LIMITLESS_API_KEY?.trim()) {
+    pluginsToLoad.add("@milady/plugin-limitless");
+  }
+
+  // Web3 wallet plugins — auto-load when private keys are present.
+  if (process.env.EVM_PRIVATE_KEY?.trim()) {
+    pluginsToLoad.add("@elizaos/plugin-evm");
+  }
+  if (process.env.SOLANA_PRIVATE_KEY?.trim()) {
+    pluginsToLoad.add("@elizaos/plugin-solana");
+  }
+
+  // Polymarket — auto-load when CLOB API key is present (requires EVM).
+  if (process.env.CLOB_API_KEY?.trim()) {
+    pluginsToLoad.add("@elizaos/plugin-polymarket");
+    pluginsToLoad.add("@elizaos/plugin-evm");
+  }
+
+  // Autonomous trading — auto-load when Birdeye key is set (requires Solana).
+  if (process.env.BIRDEYE_API_KEY?.trim()) {
+    pluginsToLoad.add("@elizaos/plugin-auto-trader");
+    pluginsToLoad.add("@elizaos/plugin-solana");
   }
 
   // User-installed plugins from config.plugins.installs

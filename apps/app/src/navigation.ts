@@ -13,6 +13,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ export const COMPANION_ENABLED =
 export type Tab =
   | "chat"
   | "companion"
+  | "trader"
   | "stream"
   | "apps"
   | "character"
@@ -85,6 +87,12 @@ export const ALL_TAB_GROUPS: TabGroup[] = [
     tabs: ["character", "character-select"],
     icon: Bot,
     description: "AI personality and behavior",
+  },
+  {
+    label: "Trader",
+    tabs: ["trader"],
+    icon: TrendingUp,
+    description: "Prediction market trading",
   },
   {
     label: "Wallets",
@@ -150,6 +158,7 @@ export function getTabGroups(streamEnabled = STREAM_ENABLED): TabGroup[] {
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
   companion: "/companion",
+  trader: "/trader",
   stream: "/stream",
   apps: "/apps",
   character: "/character",
@@ -283,6 +292,8 @@ export function titleForTab(tab: Tab): string {
       return "Settings";
     case "logs":
       return "Logs";
+    case "trader":
+      return "Trader";
     case "stream":
       return "Stream";
     case "security":

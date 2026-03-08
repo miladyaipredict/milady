@@ -38,9 +38,9 @@ export function VrmStage({
     setShowVrmFallback(false);
     const timer = window.setTimeout(() => {
       setShowVrmFallback(true);
-    }, 4000);
+    }, 12000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [vrmPath]);
 
   // Subscribe to WebSocket emote events so the companion avatar plays emotes
   // triggered from the EmotePicker or agent actions.

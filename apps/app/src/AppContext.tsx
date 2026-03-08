@@ -218,7 +218,7 @@ const THEME_STORAGE_KEY = "milady:theme";
 const UI_LANGUAGE_STORAGE_KEY = "milady:ui-language";
 const UI_SHELL_MODE_STORAGE_KEY = "milady:ui-shell-mode";
 
-export type UiShellMode = "companion" | "native";
+export type UiShellMode = "companion" | "native" | "trader";
 
 export type ThemeName =
   | "milady"
@@ -285,7 +285,9 @@ function saveUiLanguage(language: UiLanguage): void {
 }
 
 function normalizeUiShellMode(mode: unknown): UiShellMode {
-  return mode === "native" ? "native" : "companion";
+  if (mode === "native") return "native";
+  if (mode === "trader") return "trader";
+  return "companion";
 }
 
 function loadUiShellMode(): UiShellMode {

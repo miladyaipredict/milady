@@ -60,15 +60,16 @@ export function ChatAvatar({
     }
   }, []);
 
-  // If a VRM fails to load, show the selected static preview in the sidebar.
+  // Show the static preview fallback while the 3D VRM is loading.
+  // Reset when the VRM path changes so a new load attempt gets a fresh timer.
   useEffect(() => {
     setVrmLoaded(false);
     setShowFallback(false);
     const timer = window.setTimeout(() => {
       setShowFallback(true);
-    }, 4000);
+    }, 12000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [vrmPath]);
 
   // Subscribe to WebSocket emote events and trigger avatar animations.
   useEffect(() => {

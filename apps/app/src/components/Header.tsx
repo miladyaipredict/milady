@@ -161,23 +161,39 @@ export function Header() {
     setCopied(type);
   };
 
-  // Shell mode toggle (companion vs native)
+  // Shell mode toggle (companion → native → trader → companion)
   const shellMode = uiShellMode ?? "companion";
-  const isNativeShell = shellMode === "native";
-  const shellToggleStateLabel = isNativeShell
-    ? t("header.nativeMode")
-    : t("header.companionMode");
-  const shellToggleActionLabel = isNativeShell
-    ? t("header.switchToCompanion")
-    : t("header.switchToNative");
-  const shellToggleClass = isNativeShell
-    ? "border-[#22c55e] text-[#22c55e] bg-[rgba(34,197,94,0.12)] hover:bg-[rgba(34,197,94,0.2)] shadow-[0_0_0_1px_rgba(34,197,94,0.35),0_0_16px_rgba(34,197,94,0.22)]"
-    : "border-[var(--accent)] text-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] shadow-[0_0_0_1px_rgba(212,175,55,0.35),0_0_16px_rgba(212,175,55,0.2)]";
+  const shellToggleStateLabel =
+    shellMode === "trader"
+      ? "Trader"
+      : shellMode === "native"
+        ? t("header.nativeMode")
+        : t("header.companionMode");
+  const shellToggleActionLabel =
+    shellMode === "companion"
+      ? t("header.switchToNative")
+      : shellMode === "native"
+        ? "Switch to Trader"
+        : t("header.switchToCompanion");
+  const shellToggleClass =
+    shellMode === "trader"
+      ? "border-[#3b82f6] text-[#3b82f6] bg-[rgba(59,130,246,0.12)] hover:bg-[rgba(59,130,246,0.2)] shadow-[0_0_0_1px_rgba(59,130,246,0.35),0_0_16px_rgba(59,130,246,0.22)]"
+      : shellMode === "native"
+        ? "border-[#22c55e] text-[#22c55e] bg-[rgba(34,197,94,0.12)] hover:bg-[rgba(34,197,94,0.2)] shadow-[0_0_0_1px_rgba(34,197,94,0.35),0_0_16px_rgba(34,197,94,0.22)]"
+        : "border-[var(--accent)] text-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_24%,transparent)] shadow-[0_0_0_1px_rgba(212,175,55,0.35),0_0_16px_rgba(212,175,55,0.2)]";
 
   const handleShellToggle = () => {
-    const nextMode = shellMode === "companion" ? "native" : "companion";
+    const cycle = ["companion", "native", "trader"] as const;
+    const idx = cycle.indexOf(shellMode as (typeof cycle)[number]);
+    const nextMode = cycle[(idx + 1) % cycle.length];
     setUiShellMode(nextMode);
-    setTab(nextMode === "companion" ? "companion" : "chat");
+    setTab(
+      nextMode === "companion"
+        ? "companion"
+        : nextMode === "trader"
+          ? "trader"
+          : "chat",
+    );
   };
 
   return (

@@ -4983,6 +4983,206 @@ export class MiladyClient {
       body: JSON.stringify({ settings }),
     });
   }
+
+  // ── Limitless CTF Exchange ────────────────────────────────────────────
+
+  async getLimitlessMarkets(
+    page = 1,
+  ): Promise<{
+    markets: LimitlessMarketSummary[];
+    page: number;
+    hasMore: boolean;
+  }> {
+    return this.fetch(`/api/limitless/markets?page=${page}`);
+  }
+
+  async getLimitlessMarket(
+    id: string,
+  ): Promise<{ market: LimitlessMarketSummary; orderbook: unknown }> {
+    return this.fetch(`/api/limitless/markets/${encodeURIComponent(id)}`);
+  }
+
+  async getLimitlessPositions(): Promise<{
+    positions: LimitlessPositionSummary[];
+    totalPnl: number;
+  }> {
+    return this.fetch("/api/limitless/positions");
+  }
+
+  async getLimitlessExposure(): Promise<{
+    totalExposureUsd: number;
+    positionCount: number;
+    remainingBudgetUsd: number;
+    maxSingleTradeUsd: number;
+    maxTotalExposureUsd: number;
+  }> {
+    return this.fetch("/api/limitless/exposure");
+  }
+
+  async placeLimitlessTrade(params: {
+    conditionId: string;
+    side: "buy" | "sell";
+    outcome: "yes" | "no";
+    amountUsd: number;
+    price?: number;
+  }): Promise<{ ok: boolean; dryRun: boolean; order?: unknown; error?: string }> {
+    return this.fetch("/api/limitless/trade", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
+  async cancelLimitlessOrder(
+    orderId: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    return this.fetch("/api/limitless/cancel", {
+      method: "POST",
+      body: JSON.stringify({ orderId }),
+    });
+  }
+
+  async getLimitlessStrategies(): Promise<{
+    strategies: LimitlessStrategy[];
+  }> {
+    return this.fetch("/api/limitless/strategies");
+  }
+
+  async toggleLimitlessStrategy(
+    id: string,
+  ): Promise<{ ok: boolean; running: boolean }> {
+    return this.fetch(`/api/limitless/strategies/${encodeURIComponent(id)}/toggle`, {
+      method: "POST",
+    });
+  }
+
+  // ── Unified Trading API ─────────────────────────────────────────────
+
+  async getTradingSources(): Promise<{
+    sources: TradingSource[];
+    wallets: { evm: boolean; solana: boolean };
+    research: { browser: boolean; rss: boolean };
+  }> {
+    return this.fetch("/api/trading/sources");
+  }
+
+  async getTradingMarkets(
+    source = "all",
+  ): Promise<{ markets: UnifiedMarket[]; total: number }> {
+    return this.fetch(`/api/trading/markets?source=${encodeURIComponent(source)}`);
+  }
+
+  async getTradingPositions(): Promise<{
+    positions: UnifiedPosition[];
+    totalPnl: number;
+  }> {
+    return this.fetch("/api/trading/positions");
+  }
+
+  async getTradingWalletStatus(): Promise<{
+    wallets: { chain: string; configured: boolean; address?: string }[];
+  }> {
+    return this.fetch("/api/trading/wallet-status");
+  }
+
+  // ── Alpha Scanner ───────────────────────────────────────────────────
+
+  async getAlphaScan(): Promise<{ scanning: boolean; result: AlphaScanResult | null }> {
+    return this.fetch("/api/trading/alpha-scan");
+  }
+
+  async runAlphaScan(): Promise<{ scanning: boolean; result: AlphaScanResult | null }> {
+    return this.fetch("/api/trading/alpha-scan", { method: "POST" });
+  }
+}
+
+export interface LimitlessMarketSummary {
+  id: string;
+  title: string;
+  conditionId: string;
+  yesPrice: number;
+  noPrice: number;
+  volume: number;
+  endDate: string;
+  status: string;
+}
+
+export interface LimitlessPositionSummary {
+  marketId: string;
+  marketTitle: string;
+  outcome: "yes" | "no";
+  shares: number;
+  avgEntryPrice: number;
+  currentPrice: number;
+  pnl: number;
+  costBasis: number;
+}
+
+export interface LimitlessStrategy {
+  id: string;
+  name: string;
+  description: string;
+  running: boolean;
+  marketFilter?: string;
+}
+
+// ── Unified Trading Types ─────────────────────────────────────────────
+
+export interface TradingSource {
+  id: string;
+  name: string;
+  enabled: boolean;
+  canTrade: boolean;
+  chain: string;
+}
+
+export interface UnifiedMarket {
+  id: string;
+  source: "limitless" | "opinion" | "polymarket";
+  title: string;
+  yesPrice: number;
+  noPrice: number;
+  volume: number;
+  endDate: string;
+  status: string;
+  sourceId: string;
+}
+
+export interface UnifiedPosition {
+  source: "limitless" | "opinion" | "polymarket";
+  marketId: string;
+  marketTitle: string;
+  outcome: string;
+  shares: number;
+  avgEntryPrice: number;
+  currentPrice: number;
+  pnl: number;
+}
+
+// ── Alpha Scanner Types ───────────────────────────────────────────────
+
+export interface AlphaOpportunity {
+  marketId: string;
+  source: string;
+  title: string;
+  signal: "mispriced" | "momentum" | "contrarian" | "arbitrage" | "event-driven" | "niche";
+  confidence: number;
+  reasoning: string;
+  suggestedSide: "yes" | "no";
+  currentPrice: number;
+  fairValue: number;
+  edge: number;
+  riskLevel: "low" | "medium" | "high";
+  suggestedSize: number;
+  timeframe: string;
+}
+
+export interface AlphaScanResult {
+  opportunities: AlphaOpportunity[];
+  marketsSurveyed: number;
+  modelUsed: string;
+  scanDurationMs: number;
+  timestamp: string;
+  summary: string;
 }
 
 // Singleton
