@@ -21,6 +21,9 @@ import {
  * fall back to trade-derived positions, filtering out negative sizes (artifact
  * of incomplete trade history — you can't short on Polymarket).
  */
+// Conditional tokens use same 6-decimal precision as USDC
+const CONDITIONAL_TOKEN_DECIMALS = 6;
+
 function buildPositions(state: AccountStateLike) {
   const conditionalTokens = state.balances?.conditionalTokens ?? {};
   const tradePositions = state.positions ?? [];
@@ -46,9 +49,11 @@ function buildPositions(state: AccountStateLike) {
 
   if (hasOnChainBalances) {
     // Preferred: use on-chain token balances as ground truth
+    // Raw balances are in micro-units (6 decimals), divide to get shares
     for (const [assetId, info] of Object.entries(conditionalTokens)) {
-      const bal = Number(info.balance);
-      if (bal <= 0) continue;
+      const rawBal = Number(info.balance);
+      if (rawBal <= 0) continue;
+      const bal = rawBal / 10 ** CONDITIONAL_TOKEN_DECIMALS;
 
       const tradeInfo = tradeMap.get(assetId);
       positions.push({
