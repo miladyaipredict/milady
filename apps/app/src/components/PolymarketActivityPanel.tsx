@@ -149,16 +149,16 @@ export function PolymarketActivityPanel() {
   const pill = (on: boolean, label: string) => (
     <span
       className={`chat-game-sidebar-cap-pill ${on ? "is-on" : "is-off"}`}
-      style={{ fontSize: 8, marginLeft: 4 }}
+      style={{ fontSize: 10, marginLeft: 6, padding: "2px 6px" }}
     >
       {label}
     </span>
   );
 
   return (
-    <div className="chat-game-sidebar-footer" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+    <div className="chat-game-sidebar-footer" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", padding: "12px 16px" }}>
       {/* Section label */}
-      <div className="chat-game-sidebar-footer-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <div className="chat-game-sidebar-footer-label" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600 }}>
         Polymarket
         {loading && pill(false, "...")}
         {!loading && off && pill(false, "offline")}
@@ -168,7 +168,7 @@ export function PolymarketActivityPanel() {
 
       {/* Offline message */}
       {off && (
-        <div style={{ fontSize: 10, color: "rgba(219,227,246,0.5)", marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: "rgba(219,227,246,0.5)", marginTop: 6 }}>
           {data?.reason === "service_not_registered"
             ? "Set POLYMARKET_PRIVATE_KEY to enable"
             : data?.reason === "runtime_not_ready"
@@ -180,21 +180,21 @@ export function PolymarketActivityPanel() {
       {/* Balance + wallet */}
       {!off && balance !== undefined && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: "rgba(219,227,246,0.6)" }}>USDC</span>
-          <span className="chat-game-sidebar-footer-value" style={{ fontSize: 11 }}>
+          <span style={{ fontSize: 14, color: "rgba(219,227,246,0.6)" }}>USDC</span>
+          <span className="chat-game-sidebar-footer-value" style={{ fontSize: 16, fontWeight: 600 }}>
             {fmtUsd(balance)}
           </span>
         </div>
       )}
       {!off && wallet && (
-        <div className="chat-game-sidebar-footer-model" style={{ fontSize: 9, marginTop: 2 }}>
+        <div className="chat-game-sidebar-footer-model" style={{ fontSize: 12, marginTop: 3 }}>
           {wallet.slice(0, 6)}...{wallet.slice(-4)}
         </div>
       )}
 
       {/* Positions */}
       {positions.length > 0 && (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: 14 }}>
           <div className="chat-game-sidebar-footer-label">
             Positions ({positions.length})
           </div>
@@ -202,8 +202,8 @@ export function PolymarketActivityPanel() {
             <div
               key={`${p.asset_id}-${i}`}
               style={{
-                fontSize: 10,
-                padding: "3px 0",
+                fontSize: 13,
+                padding: "6px 0",
                 borderBottom: "1px solid rgba(255,255,255,0.04)",
                 color: "rgba(219,227,246,0.74)",
               }}
@@ -211,7 +211,7 @@ export function PolymarketActivityPanel() {
               <div style={{ lineHeight: 1.3, marginBottom: 2 }}>
                 {p.question || p.outcome || p.market?.slice(0, 30) || p.asset_id?.slice(0, 12)}
               </div>
-              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 9, color: "rgba(219,227,246,0.5)" }}>
+              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, color: "rgba(219,227,246,0.5)" }}>
                 {fmtSize(p.size)} shares @ avg {fmtPrice(p.average_price)}
               </div>
             </div>
@@ -221,7 +221,7 @@ export function PolymarketActivityPanel() {
 
       {/* Active orders */}
       {orders.length > 0 && (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: 14 }}>
           <div className="chat-game-sidebar-footer-label">
             Orders ({orders.length})
           </div>
@@ -229,15 +229,15 @@ export function PolymarketActivityPanel() {
             <div
               key={o.id}
               style={{
-                fontSize: 10,
-                padding: "3px 0",
+                fontSize: 13,
+                padding: "6px 0",
                 borderBottom: "1px solid rgba(255,255,255,0.04)",
                 color: "rgba(219,227,246,0.74)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 4, lineHeight: 1.3, marginBottom: 2 }}>
                 <span style={{
-                  fontSize: 8, fontWeight: 700, padding: "1px 3px", borderRadius: 2, flexShrink: 0,
+                  fontSize: 11, fontWeight: 700, padding: "2px 5px", borderRadius: 3, flexShrink: 0,
                   background: o.side === "BUY" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
                   color: o.side === "BUY" ? "#34d399" : "#f87171",
                 }}>
@@ -245,7 +245,7 @@ export function PolymarketActivityPanel() {
                 </span>
                 <span>{o.question || o.outcome || o.market?.slice(0, 30)}</span>
               </div>
-              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 9, color: "rgba(219,227,246,0.5)" }}>
+              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, color: "rgba(219,227,246,0.5)" }}>
                 {fmtSize(o.size)} @ {fmtPrice(o.price)}
               </div>
             </div>
@@ -255,7 +255,7 @@ export function PolymarketActivityPanel() {
 
       {/* Recent trades */}
       {trades.length > 0 && (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: 14 }}>
           <div className="chat-game-sidebar-footer-label">
             Recent Trades ({trades.length})
           </div>
@@ -263,15 +263,15 @@ export function PolymarketActivityPanel() {
             <div
               key={t.id}
               style={{
-                fontSize: 10,
-                padding: "3px 0",
+                fontSize: 13,
+                padding: "6px 0",
                 borderBottom: "1px solid rgba(255,255,255,0.04)",
                 color: "rgba(219,227,246,0.74)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 4, lineHeight: 1.3, marginBottom: 2 }}>
                 <span style={{
-                  fontSize: 8, fontWeight: 700, padding: "1px 3px", borderRadius: 2, flexShrink: 0,
+                  fontSize: 11, fontWeight: 700, padding: "2px 5px", borderRadius: 3, flexShrink: 0,
                   background: t.side === "BUY" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
                   color: t.side === "BUY" ? "#34d399" : "#f87171",
                 }}>
@@ -279,7 +279,7 @@ export function PolymarketActivityPanel() {
                 </span>
                 <span>{t.question || t.outcome || t.market?.slice(0, 30)}</span>
               </div>
-              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 9, color: "rgba(219,227,246,0.5)", display: "flex", justifyContent: "space-between" }}>
+              <div style={{ fontFamily: "var(--font-mono), monospace", fontSize: 12, color: "rgba(219,227,246,0.5)", display: "flex", justifyContent: "space-between" }}>
                 <span>{fmtSize(t.size)} @ {fmtPrice(t.price)}</span>
                 <span>{timeAgo(t.match_time)}</span>
               </div>
@@ -290,7 +290,7 @@ export function PolymarketActivityPanel() {
 
       {/* Activity fallback */}
       {activities.length > 0 && trades.length === 0 && orders.length === 0 && (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: 14 }}>
           <div className="chat-game-sidebar-footer-label">Activity</div>
           {activities.slice(0, 3).map((a, i) => (
             <div
@@ -298,8 +298,8 @@ export function PolymarketActivityPanel() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                fontSize: 10,
-                padding: "2px 0",
+                fontSize: 13,
+                padding: "4px 0",
                 color: "rgba(219,227,246,0.6)",
               }}
             >
@@ -312,7 +312,7 @@ export function PolymarketActivityPanel() {
 
       {/* Empty state */}
       {!off && trades.length === 0 && orders.length === 0 && positions.length === 0 && activities.length === 0 && (
-        <div style={{ fontSize: 10, color: "rgba(219,227,246,0.4)", marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: "rgba(219,227,246,0.4)", marginTop: 8 }}>
           No bets yet
         </div>
       )}

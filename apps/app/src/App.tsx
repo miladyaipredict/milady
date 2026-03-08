@@ -399,7 +399,7 @@ export function App() {
               onClick={() => setPolymarketOpen(false)}
               aria-label="Close Polymarket panel"
             />
-            <div className="absolute right-4 top-16 bottom-4 w-[380px] max-w-[90vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="absolute right-4 top-16 bottom-4 w-[560px] max-w-[92vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-white/10">
                 <span className="text-sm font-semibold text-white/90">Polymarket</span>
                 <button
@@ -522,7 +522,7 @@ export function App() {
             onClick={() => setPolymarketOpen(false)}
             aria-label="Close Polymarket panel"
           />
-          <div className="absolute right-4 top-16 bottom-4 w-[380px] max-w-[90vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+          <div className="absolute right-4 top-16 bottom-4 w-[560px] max-w-[92vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
             <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-white/10">
               <span className="text-sm font-semibold text-white/90">Polymarket</span>
               <button
