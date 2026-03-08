@@ -6,6 +6,7 @@
  */
 import type { Action, HandlerOptions } from "@elizaos/core";
 import {
+  fetchClobMarket,
   fetchGammaMarket,
   getServiceOrThrow,
   hasService,
@@ -58,20 +59,28 @@ export const getPriceHistoryAction: Action = {
           ? Math.min(Math.max(params.fidelity, 1), 500)
           : 60;
 
-      // Resolve condition_id to token_id via Gamma API (CLOB expects token_id)
+      // Resolve condition_id to token_id (try CLOB first, then Gamma)
       let tokenId = tokenIdParam;
       let marketName: string | undefined;
       if (!tokenId && conditionId) {
-        const market = await fetchGammaMarket(conditionId);
-        const tokens = market?.tokens ?? [];
-        if (tokens.length > 0) {
-          tokenId = tokens[0].token_id;
-          marketName = market?.question ?? undefined;
+        const clobMarket = await fetchClobMarket(conditionId);
+        const clobTokens = clobMarket?.tokens ?? [];
+        if (clobTokens.length > 0) {
+          tokenId = clobTokens[0].token_id;
+          marketName = clobMarket?.question ?? undefined;
         } else {
-          return {
-            text: `Could not resolve condition_id ${conditionId} to a token_id. The market may not exist.`,
-            success: false,
-          };
+          // Fallback to Gamma for older markets
+          const gammaMarket = await fetchGammaMarket(conditionId);
+          const gammaTokens = gammaMarket?.tokens ?? [];
+          if (gammaTokens.length > 0) {
+            tokenId = gammaTokens[0].token_id;
+            marketName = gammaMarket?.question ?? undefined;
+          } else {
+            return {
+              text: `Could not resolve condition_id ${conditionId} to a token_id. The market may not exist.`,
+              success: false,
+            };
+          }
         }
       }
 

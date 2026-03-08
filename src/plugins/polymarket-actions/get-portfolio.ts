@@ -3,13 +3,13 @@
  *
  * Uses on-chain conditional token balances as ground truth for position sizes,
  * since trade-derived positions are unreliable with limited trade history.
- * Resolves token/market IDs to human-readable names via Gamma API.
+ * Resolves market condition_ids to names and current prices via CLOB API.
  */
 import type { Action, HandlerOptions } from "@elizaos/core";
 import {
   canTrade,
+  fetchClobMarket,
   getServiceOrThrow,
-  resolveMarketName,
   type AccountStateLike,
   type OpenOrderLike,
 } from "./service-helper.js";
@@ -132,50 +132,67 @@ export const getPortfolioAction: Action = {
       // Positions — on-chain balances preferred, trade-derived as fallback
       const positions = buildPositions(state);
       if (positions.length > 0) {
-        // Resolve unique market IDs to names (best-effort, parallel)
+        // Resolve unique market condition_ids via CLOB API (names + current prices)
         const uniqueMarkets = [
           ...new Set(positions.map((p) => p.market).filter(Boolean)),
         ];
-        const nameMap = new Map<string, string>();
+        const marketDataMap = new Map<
+          string,
+          {
+            question?: string;
+            tokens?: Array<{
+              token_id: string;
+              outcome: string;
+              price: number;
+            }>;
+          }
+        >();
         await Promise.allSettled(
           uniqueMarkets.map(async (m) => {
-            const name = await resolveMarketName(m);
-            if (name) nameMap.set(m, name);
+            const data = await fetchClobMarket(m);
+            if (data) marketDataMap.set(m, data);
           }),
         );
 
         lines.push(`\nPositions (${positions.length}):`);
-        let totalPositionValue = 0;
+        let totalMarketValue = 0;
         for (const pos of positions) {
-          const value = pos.size * pos.avgPrice;
-          totalPositionValue += value;
+          const mktData = marketDataMap.get(pos.market);
+          const marketLabel =
+            mktData?.question ??
+            (pos.market.length > 20
+              ? pos.market.slice(0, 16) + "..."
+              : pos.market);
+
+          // Find current price for this token from CLOB market data
+          const tokenMatch = mktData?.tokens?.find(
+            (t) => t.token_id === pos.asset_id,
+          );
+          const currentPrice = tokenMatch?.price ?? 0;
+          const outcome = tokenMatch?.outcome ?? "";
+          const currentValue = pos.size * currentPrice;
+          totalMarketValue += currentValue;
+
+          const priceStr =
+            currentPrice > 0
+              ? ` @ ${(currentPrice * 100).toFixed(0)}c ($${currentValue.toFixed(2)})`
+              : "";
+          const outcomeStr = outcome ? ` ${outcome}` : "";
           const pnlStr =
             pos.realizedPnl !== 0
               ? ` | P&L: ${pos.realizedPnl >= 0 ? "+" : ""}$${pos.realizedPnl.toFixed(2)}`
               : "";
-          const avgStr =
-            pos.avgPrice > 0
-              ? ` @ avg ${pos.avgPrice.toFixed(3)} ($${value.toFixed(2)})`
-              : "";
-          const marketLabel =
-            nameMap.get(pos.market) ??
-            (pos.market.length > 20
-              ? pos.market.slice(0, 16) + "..."
-              : pos.market);
           lines.push(
-            `  ${marketLabel} — ${pos.size.toFixed(1)} shares${avgStr}${pnlStr}`,
+            `  ${marketLabel}${outcomeStr} — ${pos.size.toFixed(1)} shares${priceStr}${pnlStr}`,
           );
           if (detailed) {
             lines.push(`    asset: ${pos.asset_id} | market: ${pos.market}`);
           }
         }
 
-        // Summary with positions
+        // Summary with positions valued at current market price
         const balanceUsd = collateral ? Number(collateral.balance) : 0;
-        const totalValue =
-          totalPositionValue > 0
-            ? balanceUsd + totalPositionValue
-            : balanceUsd;
+        const totalValue = balanceUsd + totalMarketValue;
 
         // Open Orders section first, then summary
         appendOpenOrders(lines, state.activeOrders ?? [], detailed);

@@ -7,8 +7,9 @@
 import type { IAgentRuntime } from "@elizaos/core";
 
 const POLYMARKET_SERVICE_NAME = "polymarket";
+const CLOB_API_URL = "https://clob.polymarket.com";
 const GAMMA_API_URL = "https://gamma-api.polymarket.com";
-const GAMMA_FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 8000;
 
 export const POLYMARKET_PROVIDER_CACHE_KEY = "polymarket:provider";
 
@@ -162,7 +163,7 @@ export async function fetchGammaMarket(
   conditionId: string,
 ): Promise<GammaMarket | null> {
   const url = `${GAMMA_API_URL}/markets?condition_id=${encodeURIComponent(conditionId)}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(GAMMA_FETCH_TIMEOUT_MS) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = (await res.json()) as GammaMarket[];
   // Gamma API returns 20 random markets for unrecognized condition_ids.
@@ -179,19 +180,39 @@ export async function fetchGammaMarketBySlug(
   slug: string,
 ): Promise<GammaMarket | null> {
   const url = `${GAMMA_API_URL}/markets?slug=${encodeURIComponent(slug)}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(GAMMA_FETCH_TIMEOUT_MS) });
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) return null;
   const data = (await res.json()) as GammaMarket[];
   return data[0] ?? null;
 }
 
-/** Resolve a condition_id or market slug to a market question string. */
+/** Fetch market data from the CLOB API (works for most active/recent markets). */
+export async function fetchClobMarket(
+  conditionId: string,
+): Promise<{ question?: string; market_slug?: string; condition_id?: string; tokens?: Array<{ token_id: string; outcome: string; price: number }> } | null> {
+  try {
+    const url = `${CLOB_API_URL}/markets/${encodeURIComponent(conditionId)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    return (await res.json()) as any;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a condition_id to a market question string.
+ * Tries CLOB API first (reliable for newer markets), falls back to Gamma. */
 export async function resolveMarketName(
-  conditionIdOrMarket: string,
+  conditionId: string,
 ): Promise<string | null> {
   try {
-    const market = await fetchGammaMarket(conditionIdOrMarket);
-    return market?.question ?? null;
+    // CLOB API is reliable for active/recent markets
+    const clobMarket = await fetchClobMarket(conditionId);
+    if (clobMarket?.question) return clobMarket.question;
+
+    // Fallback to Gamma API (works for older markets)
+    const gammaMarket = await fetchGammaMarket(conditionId);
+    return gammaMarket?.question ?? null;
   } catch {
     return null;
   }
