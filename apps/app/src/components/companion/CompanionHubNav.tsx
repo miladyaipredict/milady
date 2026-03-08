@@ -200,6 +200,39 @@ export function CompanionHubNav({
         </span>
       </button>
 
+      {/* Polymarket */}
+      <button
+        type="button"
+        className="anime-hub-btn"
+        onClick={() => setTab("polymarket")}
+        style={
+          {
+            "--ac-accent": "#22c55e",
+            "--ac-accent-rgb": "34, 197, 94",
+          } as React.CSSProperties
+        }
+      >
+        <div className="anime-hub-btn-icon">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 3v18h18" />
+            <path d="m7 14 4-4 3 3 5-6" />
+          </svg>
+        </div>
+        <span className="anime-hub-btn-label">
+          {t("nav.polymarket") || "Polymarket"}
+        </span>
+      </button>
+
       {/* Stream */}
       <button
         type="button"

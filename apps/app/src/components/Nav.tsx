@@ -12,6 +12,7 @@ const NAV_LABEL_I18N_KEY: Record<string, string> = {
   Stream: "nav.stream",
   Character: "nav.character",
   Wallets: "nav.wallets",
+  Polymarket: "nav.polymarket",
   Knowledge: "nav.knowledge",
   Social: "nav.social",
   Apps: "nav.apps",

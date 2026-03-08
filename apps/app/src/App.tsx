@@ -2,7 +2,7 @@
  * Root App component — routing shell.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "./AppContext";
 import { AdvancedPageView } from "./components/AdvancedPageView";
 import { AppsPageView } from "./components/AppsPageView";
@@ -31,6 +31,7 @@ import { LoadingScreen } from "./components/LoadingScreen";
 import { MemoryDebugPanel } from "./components/MemoryDebugPanel";
 import { Nav } from "./components/Nav";
 import { OnboardingWizard } from "./components/OnboardingWizard";
+import { PolymarketActivityPanel } from "./components/PolymarketActivityPanel";
 import { PairingView } from "./components/PairingView";
 import { RestartBanner } from "./components/RestartBanner";
 import { SaveCommandModal } from "./components/SaveCommandModal";
@@ -45,7 +46,7 @@ import { useContextMenu } from "./hooks/useContextMenu";
 import { useLifoAutoPopout } from "./hooks/useLifoAutoPopout";
 import { isLifoPopoutMode, isLifoPopoutValue } from "./lifo-popout";
 import type { Tab } from "./navigation";
-import { APPS_ENABLED, COMPANION_ENABLED, pathForTab } from "./navigation";
+import { APPS_ENABLED, COMPANION_ENABLED, MODAL_TABS, pathForTab } from "./navigation";
 
 const CHAT_MOBILE_BREAKPOINT_PX = 1024;
 
@@ -153,6 +154,19 @@ export function App() {
     window.addEventListener("stream-popout", handler);
     return () => window.removeEventListener("stream-popout", handler);
   }, [setTab]);
+
+  // Modal tabs (e.g. Polymarket) — open as overlay, don't change current view
+  const [polymarketOpen, setPolymarketOpen] = useState(false);
+  const prevTabRef = useRef<Tab>(effectiveTab);
+  useEffect(() => {
+    if (MODAL_TABS.has(effectiveTab)) {
+      if (effectiveTab === "polymarket") setPolymarketOpen((v) => !v);
+      // Revert to previous tab so the underlying view doesn't change
+      setTab(prevTabRef.current);
+    } else {
+      prevTabRef.current = effectiveTab;
+    }
+  }, [effectiveTab, setTab]);
 
   const [customActionsPanelOpen, setCustomActionsPanelOpen] = useState(false);
   const [customActionsEditorOpen, setCustomActionsEditorOpen] = useState(false);
@@ -376,6 +390,31 @@ export function App() {
     return (
       <BugReportProvider value={bugReport}>
         <CompanionShell tab={effectiveTab} actionNotice={actionNotice} />
+        {/* Polymarket modal overlay */}
+        {polymarketOpen && (
+          <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="Polymarket">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm w-full h-full border-0 cursor-pointer"
+              onClick={() => setPolymarketOpen(false)}
+              aria-label="Close Polymarket panel"
+            />
+            <div className="absolute right-4 top-16 bottom-4 w-[380px] max-w-[90vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-white/10">
+                <span className="text-sm font-semibold text-white/90">Polymarket</span>
+                <button
+                  type="button"
+                  className="w-8 h-8 flex items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors"
+                  onClick={() => setPolymarketOpen(false)}
+                  aria-label="Close"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <PolymarketActivityPanel />
+            </div>
+          </div>
+        )}
         <CommandPalette />
         <EmotePicker />
         <RestartBanner />
@@ -473,6 +512,31 @@ export function App() {
       {/* Persistent game overlay — stays visible across all tabs */}
       {activeGameViewerUrl && gameOverlayEnabled && tab !== "apps" && (
         <GameViewOverlay />
+      )}
+      {/* Polymarket modal overlay */}
+      {polymarketOpen && (
+        <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="Polymarket">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm w-full h-full border-0 cursor-pointer"
+            onClick={() => setPolymarketOpen(false)}
+            aria-label="Close Polymarket panel"
+          />
+          <div className="absolute right-4 top-16 bottom-4 w-[380px] max-w-[90vw] bg-[#0d1117] border border-white/10 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-white/10">
+              <span className="text-sm font-semibold text-white/90">Polymarket</span>
+              <button
+                type="button"
+                className="w-8 h-8 flex items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors"
+                onClick={() => setPolymarketOpen(false)}
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <PolymarketActivityPanel />
+          </div>
+        </div>
       )}
       <CommandPalette />
       <EmotePicker />

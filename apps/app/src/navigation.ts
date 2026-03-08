@@ -8,6 +8,7 @@ import {
   Brain,
   Gamepad2,
   Heart,
+  LineChart,
   MessageSquare,
   Radio,
   Settings,
@@ -52,7 +53,11 @@ export type Tab =
   | "lifo"
   | "settings"
   | "logs"
-  | "security";
+  | "security"
+  | "polymarket";
+
+/** Tabs that open as modal overlays instead of navigating to a page. */
+export const MODAL_TABS = new Set<Tab>(["polymarket"]);
 
 export interface TabGroup {
   label: string;
@@ -91,6 +96,12 @@ export const ALL_TAB_GROUPS: TabGroup[] = [
     tabs: ["wallets"],
     icon: Wallet,
     description: "Crypto wallets and inventory",
+  },
+  {
+    label: "Polymarket",
+    tabs: ["polymarket"],
+    icon: LineChart,
+    description: "Live prediction market positions",
   },
   {
     label: "Knowledge",
@@ -171,6 +182,7 @@ const TAB_PATHS: Record<Tab, string> = {
   settings: "/settings",
   logs: "/logs",
   security: "/security",
+  polymarket: "/polymarket",
 };
 
 /** Legacy path redirects — old paths that now map to new tabs. */
@@ -287,6 +299,8 @@ export function titleForTab(tab: Tab): string {
       return "Stream";
     case "security":
       return "Security";
+    case "polymarket":
+      return "Polymarket";
     default:
       return "Milady";
   }
