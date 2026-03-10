@@ -7,10 +7,8 @@ import { useApp } from "./AppContext";
 import { AdvancedPageView } from "./components/AdvancedPageView";
 import { AppsPageView } from "./components/AppsPageView";
 import { AutonomousPanel } from "./components/AutonomousPanel";
-import { BugReportModal } from "./components/BugReportModal";
 import { CharacterView } from "./components/CharacterView";
 import { ChatView } from "./components/ChatView";
-import { CommandPalette } from "./components/CommandPalette";
 import {
   COMPANION_OVERLAY_TABS,
   CompanionShell,
@@ -21,22 +19,20 @@ import { ConnectorsPageView } from "./components/ConnectorsPageView";
 import { ConversationsSidebar } from "./components/ConversationsSidebar";
 import { CustomActionEditor } from "./components/CustomActionEditor";
 import { CustomActionsPanel } from "./components/CustomActionsPanel";
-import { EmotePicker } from "./components/EmotePicker";
 import { GameViewOverlay } from "./components/GameViewOverlay";
 import { Header } from "./components/Header";
 import { InventoryView } from "./components/InventoryView";
 import { KnowledgeView } from "./components/KnowledgeView";
 import { LifoSandboxView } from "./components/LifoSandboxView";
 import { LoadingScreen } from "./components/LoadingScreen";
-import { MemoryDebugPanel } from "./components/MemoryDebugPanel";
 import { Nav } from "./components/Nav";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { PolymarketActivityPanel } from "./components/PolymarketActivityPanel";
 import { Zerc20Panel } from "./components/Zerc20Panel";
 import { PairingView } from "./components/PairingView";
-import { RestartBanner } from "./components/RestartBanner";
 import { SaveCommandModal } from "./components/SaveCommandModal";
 import { SettingsView } from "./components/SettingsView";
+import { ShellOverlays } from "./components/ShellOverlays";
 import { StartupFailureView } from "./components/StartupFailureView";
 import { StreamView } from "./components/StreamView";
 import { SystemWarningBanner } from "./components/SystemWarningBanner";
@@ -45,6 +41,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { BugReportProvider, useBugReportState } from "./hooks/useBugReport";
 import { useContextMenu } from "./hooks/useContextMenu";
 import { useLifoAutoPopout } from "./hooks/useLifoAutoPopout";
+import { useStreamPopoutNavigation } from "./hooks/useStreamPopoutNavigation";
 import { isLifoPopoutMode, isLifoPopoutValue } from "./lifo-popout";
 import type { Tab } from "./navigation";
 import { APPS_ENABLED, COMPANION_ENABLED, MODAL_TABS, pathForTab } from "./navigation";
@@ -139,22 +136,7 @@ export function App() {
         : tab;
   const contextMenu = useContextMenu();
 
-  // When the stream is popped out, navigate away; when closed, navigate back.
-  const [streamPoppedOut, setStreamPoppedOut] = useState(false);
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail === "opened") {
-        setStreamPoppedOut(true);
-        setTab("chat");
-      } else if (detail === "closed") {
-        setStreamPoppedOut(false);
-        setTab("stream");
-      }
-    };
-    window.addEventListener("stream-popout", handler);
-    return () => window.removeEventListener("stream-popout", handler);
-  }, [setTab]);
+  useStreamPopoutNavigation(setTab);
 
   // Modal tabs (e.g. Polymarket, zERC20) — open as overlay, don't change current view
   const [polymarketOpen, setPolymarketOpen] = useState(false);
@@ -447,24 +429,7 @@ export function App() {
             </div>
           </div>
         )}
-        <CommandPalette />
-        <EmotePicker />
-        <RestartBanner />
-        <MemoryDebugPanel />
-        <BugReportModal />
-        {actionNotice && (
-          <div
-            className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 rounded-lg text-[13px] font-medium z-[10000] text-white ${
-              actionNotice.tone === "error"
-                ? "bg-danger"
-                : actionNotice.tone === "success"
-                  ? "bg-ok"
-                  : "bg-accent"
-            }`}
-          >
-            {actionNotice.text}
-          </div>
-        )}
+        <ShellOverlays actionNotice={actionNotice} />
       </BugReportProvider>
     );
   }
@@ -472,7 +437,7 @@ export function App() {
   /* ── Native shell mode (all fork features intact) ─────────────────── */
   return (
     <BugReportProvider value={bugReport}>
-      {tab === "stream" && !streamPoppedOut ? (
+      {tab === "stream" ? (
         <div className="flex flex-col flex-1 min-h-0 w-full font-body text-txt bg-bg">
           <Header />
           <Nav />
@@ -480,7 +445,7 @@ export function App() {
             <StreamView />
           </main>
         </div>
-      ) : isChat || (tab === "stream" && streamPoppedOut) ? (
+      ) : isChat ? (
         <div className="flex flex-col flex-1 min-h-0 w-full font-body text-txt bg-bg">
           <Header />
           <Nav mobileLeft={mobileChatControls} />
@@ -599,8 +564,7 @@ export function App() {
           </div>
         </div>
       )}
-      <CommandPalette />
-      <EmotePicker />
+      <ShellOverlays actionNotice={actionNotice} />
       <SaveCommandModal
         open={contextMenu.saveCommandModalOpen}
         text={contextMenu.saveCommandText}
@@ -616,24 +580,8 @@ export function App() {
           setEditingAction(null);
         }}
       />
-      <RestartBanner />
       <ConnectionFailedBanner />
       <SystemWarningBanner />
-      <MemoryDebugPanel />
-      <BugReportModal />
-      {actionNotice && (
-        <div
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 rounded-lg text-[13px] font-medium z-[10000] text-white ${
-            actionNotice.tone === "error"
-              ? "bg-danger"
-              : actionNotice.tone === "success"
-                ? "bg-ok"
-                : "bg-accent"
-          }`}
-        >
-          {actionNotice.text}
-        </div>
-      )}
     </BugReportProvider>
   );
 }

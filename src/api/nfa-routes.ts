@@ -41,7 +41,12 @@ let nfaPlugin: NfaPlugin | null | undefined;
 async function getNfaPlugin(): Promise<NfaPlugin | null> {
   if (nfaPlugin !== undefined) return nfaPlugin;
   try {
-    const mod = await import("@milady/plugin-bnb-identity");
+    // WHY variable: Vite's import-analysis plugin resolves string-literal
+    // dynamic imports at transform time, failing if the package's dist/
+    // isn't built. Using a variable makes the specifier opaque to Vite so
+    // the try/catch can handle a missing module at runtime.
+    const pkgName = "@milady/plugin-bnb-identity";
+    const mod = await import(/* @vite-ignore */ pkgName);
     nfaPlugin =
       typeof mod?.buildMerkleRoot === "function" &&
       typeof mod?.parseLearnings === "function" &&

@@ -11,6 +11,8 @@
 
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
+import { BRIDGE_READY_EVENT, dispatchMiladyEvent } from "../events";
+import { isElectrobunRuntime } from "./electrobun-runtime";
 
 // Import the plugin bridge
 import {
@@ -26,7 +28,14 @@ const platform = Capacitor.getPlatform();
 const isNative = Capacitor.isNativePlatform();
 const isIOS = platform === "ios";
 const isAndroid = platform === "android";
-const isElectron = platform === "electron";
+
+function isElectronPlatform(): boolean {
+  return platform === "electron" || isElectrobunRuntime();
+}
+
+function isWebPlatform(): boolean {
+  return platform === "web" && !isElectrobunRuntime();
+}
 
 /**
  * Capability flags indicating what features are available
@@ -60,6 +69,7 @@ export interface CapacitorCapabilities {
  * Get the current platform capabilities
  */
 export function getCapabilities(): CapacitorCapabilities {
+  const isElectron = isElectronPlatform();
   return {
     native: isNative,
     platform: platform as CapacitorCapabilities["platform"],
@@ -222,6 +232,7 @@ export interface MiladyBridge {
  * Create the global bridge object
  */
 function createBridge(): MiladyBridge {
+  const isElectron = isElectronPlatform();
   return {
     capabilities: getCapabilities(),
     pluginCapabilities: getPluginCapabilities(),
@@ -237,7 +248,7 @@ function createBridge(): MiladyBridge {
       isIOS,
       isAndroid,
       isElectron,
-      isWeb: platform === "web",
+      isWeb: isWebPlatform(),
       isMacOS: isElectron, // Electron is used for macOS/desktop
     },
   };
@@ -259,11 +270,7 @@ export function initializeCapacitorBridge(): void {
   window.Milady = createBridge();
 
   // Dispatch an event to notify that the bridge is ready
-  document.dispatchEvent(
-    new CustomEvent("milady:bridge-ready", {
-      detail: window.Milady,
-    }),
-  );
+  dispatchMiladyEvent(BRIDGE_READY_EVENT, window.Milady);
 }
 
 /**
@@ -278,7 +285,7 @@ export function waitForBridge(): Promise<MiladyBridge> {
 
   return new Promise((resolve) => {
     document.addEventListener(
-      "milady:bridge-ready",
+      BRIDGE_READY_EVENT,
       (event) => {
         resolve((event as CustomEvent<MiladyBridge>).detail);
       },

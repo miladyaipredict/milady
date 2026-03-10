@@ -12,11 +12,20 @@ import type {
   Plugin,
   Provider,
   ProviderResult,
+  ServiceClass,
   State,
 } from "@elizaos/core";
+import { AgentEventService } from "@elizaos/core";
 import { emoteAction } from "../actions/emote";
 import { restartAction } from "../actions/restart";
 import { sendMessageAction } from "../actions/send-message";
+import {
+  goLiveAction,
+  goOfflineAction,
+  manageOverlayWidgetAction,
+  setStreamDestinationAction,
+  speakOnStreamAction,
+} from "../actions/stream-control";
 import { switchStreamSourceAction } from "../actions/switch-stream-source";
 import { terminalAction } from "../actions/terminal";
 import { EMOTE_CATALOG } from "../emotes/catalog";
@@ -137,6 +146,8 @@ export function createMiladyPlugin(config?: MiladyPluginConfig): Plugin {
     description:
       "Milady workspace context, session keys, and lifecycle actions",
 
+    services: [AgentEventService as unknown as ServiceClass],
+
     init: async (_pluginConfig, runtime) => {
       registerTriggerTaskWorker(runtime);
       ensureAutonomousStateTracking(runtime);
@@ -158,6 +169,11 @@ export function createMiladyPlugin(config?: MiladyPluginConfig): Plugin {
       createTriggerTaskAction,
       emoteAction,
       switchStreamSourceAction,
+      goLiveAction,
+      goOfflineAction,
+      setStreamDestinationAction,
+      speakOnStreamAction,
+      manageOverlayWidgetAction,
       ...loadCustomActions(),
     ],
   };

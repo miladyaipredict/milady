@@ -135,6 +135,18 @@ export default defineConfig({
         ),
       },
       {
+        // workspace plugin not built in CI (--ignore-scripts); resolve from
+        // source so vi.mock() and dynamic import() don't fail on missing dist/.
+        find: "@milady/plugin-bnb-identity",
+        replacement: path.join(
+          repoRoot,
+          "packages",
+          "plugin-bnb-identity",
+          "src",
+          "index.ts",
+        ),
+      },
+      {
         // @elizaos/skills has a broken package.json entry; the code handles the
 
         // missing module gracefully (try/catch), so redirect to an empty stub.
@@ -168,6 +180,12 @@ export default defineConfig({
         ),
       },
       {
+        // plugin-pdf currently pulls in a browser-oriented pdfjs bundle that
+        // is not required for the unit/e2e coverage we run in CI.
+        find: "@elizaos/plugin-pdf",
+        replacement: path.join(repoRoot, "test", "stubs", "empty-module.mjs"),
+      },
+      {
         find: "electron",
         replacement: path.join(repoRoot, "test", "stubs", "electron-module.ts"),
       },
@@ -187,7 +205,6 @@ export default defineConfig({
       "apps/app/test/app/api-client-timeout.test.ts",
       "apps/app/test/app/startup-backend-missing.e2e.test.ts",
       "apps/app/test/app/startup-token-401.e2e.test.ts",
-      "apps/app/test/electron-ui/electron-startup-failure.e2e.spec.ts",
       "test/api-server.e2e.test.ts",
       "test/format-error.test.ts",
       "test/trajectory-database.e2e.test.ts",
@@ -199,7 +216,13 @@ export default defineConfig({
       "test/health-endpoint.e2e.test.ts",
     ],
     setupFiles: ["test/setup.ts"],
-    exclude: ["dist/**", "**/node_modules/**", "**/*.live.test.ts"],
+    exclude: [
+      "dist/**",
+      "**/node_modules/**",
+      "**/*.live.test.ts",
+      "apps/app/test/electron/**",
+      "apps/app/test/electron-ui/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

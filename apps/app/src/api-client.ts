@@ -94,9 +94,6 @@ export type {
   WalletTradingProfileResponse,
   WalletTradingProfileSourceFilter,
   WalletTradingProfileWindow,
-  BscTradeExecuteRequest,
-  BscTransferExecuteRequest,
-  BscTransferExecuteResponse,
 };
 export type { DropStatus, MintResult };
 export type { VerificationResult };
@@ -687,6 +684,9 @@ export interface PluginInfo {
   configUiHints?: Record<string, ConfigUiHint>;
   /** Optional icon URL or emoji for the plugin card header. */
   icon?: string | null;
+  homepage?: string;
+  repository?: string;
+  setupGuideUrl?: string;
 }
 
 export interface CorePluginEntry {

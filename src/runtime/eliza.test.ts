@@ -9,8 +9,47 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { logger, type Plugin } from "@elizaos/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock all static plugin star-imports in eliza.ts to avoid ESM resolution
+// failure: @elizaos/plugin-ollama imports MAX_EMBEDDING_TOKENS which Vitest
+// cannot resolve from @elizaos/core at static-analysis time.
+vi.mock("@elizaos/plugin-agent-orchestrator", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-agent-skills", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-anthropic", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-browser", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-cli", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-coding-agent", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-computeruse", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-cron", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-discord", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-edge-tts", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-elevenlabs", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-elizacloud", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-experience", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-form", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-google-genai", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-groq", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-knowledge", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-local-embedding", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-ollama", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-openai", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-openrouter", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-pdf", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-personality", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-plugin-manager", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-rolodex", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-secrets-manager", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-shell", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-sql", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-telegram", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-todo", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-trajectory-logger", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-trust", () => ({ default: {} }));
+vi.mock("@elizaos/plugin-twitch", () => ({ default: {} }));
+
 import { findPluginExport } from "../cli/plugins-cli";
 import type { MiladyConfig } from "../config/config";
 import { CONNECTOR_PLUGINS } from "../config/plugin-auto-enable";
@@ -25,6 +64,7 @@ import {
   CHANNEL_PLUGIN_MAP,
   CORE_PLUGINS,
   CUSTOM_PLUGINS_DIRNAME,
+  cleanStalePglitePid,
   collectPluginNames,
   deduplicatePluginActions,
   findRuntimePluginExport,
@@ -32,9 +72,11 @@ import {
   isRecoverablePgliteInitError,
   mergeDropInPlugins,
   repairBrokenInstallRecord,
+  resolveMiladyPluginImportSpecifier,
   resolvePackageEntry,
   resolvePrimaryModel,
   scanDropInPlugins,
+  shouldIgnoreMissingPluginExport,
 } from "./eliza";
 
 // ---------------------------------------------------------------------------
@@ -278,6 +320,16 @@ describe("collectPluginNames", () => {
     expect(names.has("@elizaos/plugin-repoprompt")).toBe(true);
   });
 
+  it("normalizes streaming-base short IDs in plugins.allow", () => {
+    const config = {
+      plugins: { allow: ["streaming-base"] },
+    } as unknown as MiladyConfig;
+    const names = collectPluginNames(config);
+
+    expect(names.has("@milady/plugin-streaming-base")).toBe(true);
+    expect(names.has("@elizaos/plugin-streaming-base")).toBe(false);
+  });
+
   it("normalizes cua short IDs in plugins.allow", () => {
     const config = {
       plugins: { allow: ["cua"] },
@@ -372,6 +424,30 @@ describe("collectPluginNames", () => {
     } as unknown as MiladyConfig;
     const names = collectPluginNames(config);
     expect(names.has("@elizaos/plugin-telegram")).toBe(true);
+  });
+
+  it("uses the Milady streaming-base package when enabled via plugins.entries", () => {
+    const config = {
+      plugins: {
+        entries: { "streaming-base": { enabled: true } },
+      },
+    } as unknown as MiladyConfig;
+    const names = collectPluginNames(config);
+
+    expect(names.has("@milady/plugin-streaming-base")).toBe(true);
+    expect(names.has("@elizaos/plugin-streaming-base")).toBe(false);
+  });
+
+  it("uses the Milady x-streaming package when enabled via plugins.entries", () => {
+    const config = {
+      plugins: {
+        entries: { "x-streaming": { enabled: true } },
+      },
+    } as unknown as MiladyConfig;
+    const names = collectPluginNames(config);
+
+    expect(names.has("@milady/plugin-x-streaming")).toBe(true);
+    expect(names.has("@elizaos/plugin-x-streaming")).toBe(false);
   });
 
   it("uses @elizaos/plugin-telegram from CHANNEL_PLUGIN_MAP for connectors with plugins.entries", () => {
@@ -1793,6 +1869,66 @@ describe("mergeDropInPlugins", () => {
 });
 
 // ---------------------------------------------------------------------------
+// resolveMiladyPluginImportSpecifier
+// ---------------------------------------------------------------------------
+
+describe("resolveMiladyPluginImportSpecifier", () => {
+  it("prefers a bundled local plugin wrapper when one exists", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-plugin-"));
+    const runtimeDir = path.join(tmpDir, "runtime");
+    const pluginIndex = path.join(tmpDir, "plugins", "retake", "index.js");
+
+    await fs.mkdir(runtimeDir, { recursive: true });
+    await fs.mkdir(path.dirname(pluginIndex), { recursive: true });
+    await fs.writeFile(pluginIndex, "export default {};\n");
+
+    const specifier = resolveMiladyPluginImportSpecifier(
+      "@milady/plugin-retake",
+      pathToFileURL(path.join(runtimeDir, "eliza.ts")).href,
+    );
+
+    expect(specifier).toBe(pathToFileURL(pluginIndex).href);
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("falls back to the bundled package when no local wrapper exists", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-plugin-"));
+    const runtimeDir = path.join(tmpDir, "runtime");
+    await fs.mkdir(runtimeDir, { recursive: true });
+
+    const specifier = resolveMiladyPluginImportSpecifier(
+      "@milady/plugin-x-streaming",
+      pathToFileURL(path.join(runtimeDir, "eliza.ts")).href,
+    );
+
+    expect(specifier).toBe("@milady/plugin-x-streaming");
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("leaves non-Milady plugins unchanged", () => {
+    expect(resolveMiladyPluginImportSpecifier("@elizaos/plugin-discord")).toBe(
+      "@elizaos/plugin-discord",
+    );
+  });
+});
+
+describe("shouldIgnoreMissingPluginExport", () => {
+  it("ignores helper-only streaming-base package exports", () => {
+    expect(
+      shouldIgnoreMissingPluginExport("@milady/plugin-streaming-base"),
+    ).toBe(true);
+  });
+
+  it("does not ignore real plugins", () => {
+    expect(shouldIgnoreMissingPluginExport("@milady/plugin-x-streaming")).toBe(
+      false,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // findPluginExport
 // ---------------------------------------------------------------------------
 
@@ -2323,5 +2459,109 @@ describe("deduplicatePluginActions", () => {
     expect(p1.actions?.map((a) => a.name)).toEqual(["SHARED"]);
     expect(p2.actions?.map((a) => a.name)).toEqual(["UNIQUE_2"]);
     expect(p3.actions?.map((a) => a.name)).toEqual(["UNIQUE_3"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanStalePglitePid
+// ---------------------------------------------------------------------------
+
+describe("cleanStalePglitePid", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "pglite-pid-test-"));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("does nothing when postmaster.pid does not exist", () => {
+    // Should not throw
+    cleanStalePglitePid(tmpDir);
+    // No pid file to check
+  });
+
+  it("removes a stale pid file when the process is not running", async () => {
+    const pidPath = path.join(tmpDir, "postmaster.pid");
+    // Use a PID that is extremely unlikely to be running
+    await fs.writeFile(pidPath, "999999999\n/tmp/pglite\n5432\n");
+
+    cleanStalePglitePid(tmpDir);
+
+    const exists = await fs
+      .access(pidPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
+  });
+
+  it("leaves the pid file intact when the process is still running", async () => {
+    const pidPath = path.join(tmpDir, "postmaster.pid");
+    // Use our own PID — guaranteed to be running
+    await fs.writeFile(pidPath, `${process.pid}\n/tmp/pglite\n5432\n`);
+
+    cleanStalePglitePid(tmpDir);
+
+    const exists = await fs
+      .access(pidPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(true);
+  });
+
+  it("leaves the pid file intact on EPERM (process exists under different user)", async () => {
+    const pidPath = path.join(tmpDir, "postmaster.pid");
+    await fs.writeFile(pidPath, "12345\n/tmp/pglite\n5432\n");
+
+    // Mock process.kill to throw EPERM (process exists but different owner)
+    const origKill = process.kill;
+    process.kill = ((pid: number, signal?: number) => {
+      if (signal === 0) {
+        const err = new Error("EPERM") as NodeJS.ErrnoException;
+        err.code = "EPERM";
+        throw err;
+      }
+      return origKill.call(process, pid, signal);
+    }) as typeof process.kill;
+
+    try {
+      cleanStalePglitePid(tmpDir);
+    } finally {
+      process.kill = origKill;
+    }
+
+    const exists = await fs
+      .access(pidPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(true);
+  });
+
+  it("removes a malformed pid file (non-numeric)", async () => {
+    const pidPath = path.join(tmpDir, "postmaster.pid");
+    await fs.writeFile(pidPath, "not-a-number\n");
+
+    cleanStalePglitePid(tmpDir);
+
+    const exists = await fs
+      .access(pidPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
+  });
+
+  it("removes a malformed pid file (empty)", async () => {
+    const pidPath = path.join(tmpDir, "postmaster.pid");
+    await fs.writeFile(pidPath, "");
+
+    cleanStalePglitePid(tmpDir);
+
+    const exists = await fs
+      .access(pidPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
   });
 });

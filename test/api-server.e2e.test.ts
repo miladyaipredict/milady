@@ -858,6 +858,49 @@ function createRuntimeForCreditErrorTests(): AgentRuntime {
 }
 
 // ---------------------------------------------------------------------------
+// Test isolation — redirect all state to a temp directory so tests never
+// touch the real ~/.milady config, database, or plugins.
+// ---------------------------------------------------------------------------
+
+let _e2eTempDir: string;
+let _origStateDirEnv: string | undefined;
+
+beforeAll(async () => {
+  _origStateDirEnv = process.env.MILADY_STATE_DIR;
+  _e2eTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "milady-e2e-"));
+  process.env.MILADY_STATE_DIR = _e2eTempDir;
+
+  // Seed a minimal config so the server can start
+  await fs.writeFile(
+    path.join(_e2eTempDir, "milady.json"),
+    JSON.stringify({
+      agents: {
+        defaults: { workspace: path.join(_e2eTempDir, "workspace") },
+        list: [{ id: "main", default: true, name: "TestAgent" }],
+      },
+      ui: { theme: "dark" },
+      cloud: { enabled: false },
+      env: {},
+      features: {},
+      plugins: { entries: {} },
+      database: { provider: "pglite" },
+    }),
+  );
+  await fs.mkdir(path.join(_e2eTempDir, "workspace"), { recursive: true });
+});
+
+afterAll(async () => {
+  if (_origStateDirEnv !== undefined) {
+    process.env.MILADY_STATE_DIR = _origStateDirEnv;
+  } else {
+    delete process.env.MILADY_STATE_DIR;
+  }
+  if (_e2eTempDir) {
+    await fs.rm(_e2eTempDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -2686,6 +2729,42 @@ describe("API Server E2E (no runtime)", () => {
       const { status, data } = await req(port, "GET", "/api/skills");
       expect(status).toBe(200);
       expect(Array.isArray(data.skills)).toBe(true);
+    });
+
+    it("includes marketplace-installed skills from the hidden .marketplace directory", async () => {
+      const marketplaceSkillDir = path.join(
+        _e2eTempDir,
+        "workspace",
+        "skills",
+        ".marketplace",
+        "remote-skill",
+      );
+      await fs.mkdir(marketplaceSkillDir, { recursive: true });
+      await fs.writeFile(
+        path.join(marketplaceSkillDir, "SKILL.md"),
+        [
+          "---",
+          "name: Remote Skill",
+          "description: Installed from marketplace",
+          "---",
+          "",
+          "# Remote skill",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      try {
+        const refreshed = await req(port, "POST", "/api/skills/refresh", {});
+        expect(refreshed.status).toBe(200);
+        const skills = refreshed.data.skills as Array<{ id?: string }>;
+        expect(skills.some((skill) => skill.id === "remote-skill")).toBe(true);
+      } finally {
+        await fs.rm(path.join(_e2eTempDir, "workspace", "skills"), {
+          recursive: true,
+          force: true,
+        });
+        await req(port, "POST", "/api/skills/refresh", {});
+      }
     });
 
     it("falls back to runtime-provided skill directories when AgentSkillsService is empty", async () => {

@@ -27,11 +27,34 @@ import {
   type Task,
   type UUID,
 } from "@elizaos/core";
-import type {
-  CoordinationLLMResponse,
-  SwarmEvent,
-  TaskContext,
-} from "@elizaos/plugin-agent-orchestrator";
+
+/**
+ * Local stubs for types removed from @elizaos/plugin-agent-orchestrator 2.x.
+ * These are only used as structural types for the SwarmCoordinator callbacks;
+ * no runtime import is needed.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: legacy coordinator event payload
+type SwarmEvent = Record<string, any>;
+// biome-ignore lint/suspicious/noExplicitAny: legacy coordinator task context
+type TaskContext = Record<string, any>;
+interface CoordinationLLMResponse {
+  action: string;
+  reasoning: string;
+  response?: string;
+  useKeys?: boolean;
+  keys?: string[];
+}
+interface TaskCompletionSummary {
+  sessionId: string;
+  label: string;
+  agentType: string;
+  originalTask: string;
+  status: string;
+  completionSummary: string;
+  // biome-ignore lint/suspicious/noExplicitAny: legacy coordinator summary
+  [key: string]: any;
+}
+
 import { listPiAiModelOptions } from "@elizaos/plugin-pi-ai";
 import { ethers } from "ethers";
 import { type WebSocket, WebSocketServer } from "ws";
@@ -51,6 +74,11 @@ import {
 import type { ConnectorConfig, CustomActionDef } from "../config/types.milady";
 import { EMOTE_BY_ID, EMOTE_CATALOG } from "../emotes/catalog";
 import { resolveDefaultAgentWorkspaceDir } from "../providers/workspace";
+import {
+  type AgentEventPayloadLike,
+  type AgentEventServiceLike,
+  getAgentEventService,
+} from "../runtime/agent-event-service";
 import { CORE_PLUGINS, OPTIONAL_CORE_PLUGINS } from "../runtime/core-plugins";
 import {
   buildTestHandler,
@@ -200,8 +228,7 @@ type ConnectorRouteHandler = (
 function getAgentEventSvc(
   runtime: AgentRuntime | null,
 ): AgentEventServiceLike | null {
-  if (!runtime) return null;
-  return runtime.getService("AGENT_EVENT") as AgentEventServiceLike | null;
+  return getAgentEventService(runtime);
 }
 
 /* ── Polymarket condition ID → market question resolver ─────────────── */
@@ -514,6 +541,9 @@ interface PluginEntry {
   configUiHints?: Record<string, Record<string, unknown>>;
   /** Optional icon URL or emoji for the plugin card header. */
   icon?: string | null;
+  homepage?: string;
+  repository?: string;
+  setupGuideUrl?: string;
 }
 
 interface SkillEntry {
@@ -531,37 +561,6 @@ interface LogEntry {
   message: string;
   source: string;
   tags: string[];
-}
-
-interface AgentEventPayloadLike {
-  runId: string;
-  seq: number;
-  stream: string;
-  ts: number;
-  data: object;
-  sessionKey?: string;
-  agentId?: string;
-  roomId?: UUID;
-}
-
-interface HeartbeatEventPayloadLike {
-  ts: number;
-  status: string;
-  to?: string;
-  preview?: string;
-  durationMs?: number;
-  hasMedia?: boolean;
-  reason?: string;
-  channel?: string;
-  silent?: boolean;
-  indicatorType?: string;
-}
-
-interface AgentEventServiceLike {
-  subscribe: (listener: (event: AgentEventPayloadLike) => void) => () => void;
-  subscribeHeartbeat: (
-    listener: (event: HeartbeatEventPayloadLike) => void,
-  ) => () => void;
 }
 
 type StreamEventType = "agent_event" | "heartbeat_event" | "training_event";
@@ -779,6 +778,9 @@ interface PluginIndexEntry {
   configUiHints?: Record<string, Record<string, unknown>>;
   logoUrl?: string;
   icon?: string;
+  homepage?: string;
+  repository?: string;
+  setupGuideUrl?: string;
 }
 
 interface PluginIndex {
@@ -1211,7 +1213,7 @@ function aggregateSecrets(plugins: PluginEntry[]): SecretEntry[] {
  * Discover user-installed plugins from the Store (not bundled in the manifest).
  * Reads from config.plugins.installs and tries to enrich with package.json metadata.
  */
-function discoverInstalledPlugins(
+export function discoverInstalledPlugins(
   config: MiladyConfig,
   bundledIds: Set<string>,
 ): PluginEntry[] {
@@ -1240,6 +1242,8 @@ function discoverInstalledPlugins(
     let pluginParameters: PluginParamDef[] = [];
 
     let pluginIcon: string | null = null;
+    let pluginHomepage: string | undefined;
+    let pluginRepository: string | undefined;
 
     if (installPath) {
       // Check npm layout first, then direct layout
@@ -1258,11 +1262,16 @@ function discoverInstalledPlugins(
             const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
               name?: string;
               description?: string;
+              homepage?: string;
+              repository?: string | { type?: string; url?: string };
               elizaos?: {
                 displayName?: string;
                 configKeys?: string[];
                 configDefaults?: Record<string, string>;
                 logoUrl?: string;
+              };
+              agentConfig?: {
+                pluginParameters?: Record<string, Record<string, unknown>>;
               };
               logoUrl?: string;
               icon?: string;
@@ -1286,10 +1295,20 @@ function discoverInstalledPlugins(
                 isSet: Boolean(process.env[key]?.trim()),
                 currentValue: null,
               }));
+            } else if (pkg.agentConfig?.pluginParameters) {
+              pluginConfigKeys = Object.keys(pkg.agentConfig.pluginParameters);
+              pluginParameters = buildParamDefs(
+                pkg.agentConfig.pluginParameters,
+              );
             }
             // Map logoUrl or icon from package.json if available
             pluginIcon =
               pkg.logoUrl ?? pkg.elizaos?.logoUrl ?? pkg.icon ?? null;
+            pluginHomepage =
+              typeof pkg.homepage === "string" ? pkg.homepage : undefined;
+            pluginRepository =
+              normalizeRepositoryUrl(pkg.repository) ??
+              deriveMiladyRepositoryUrl(packageName, `plugin-${id}`);
             break;
           }
         } catch {
@@ -1314,6 +1333,9 @@ function discoverInstalledPlugins(
       validationErrors: [],
       validationWarnings: [],
       icon: pluginIcon,
+      homepage: pluginHomepage,
+      repository: pluginRepository,
+      setupGuideUrl: resolvePluginSetupGuideUrl(id),
     });
   }
 
@@ -1326,7 +1348,7 @@ function discoverInstalledPlugins(
  * Discover available plugins from the bundled plugins.json manifest.
  * Falls back to filesystem scanning for monorepo development.
  */
-function discoverPluginsFromManifest(): PluginEntry[] {
+export function discoverPluginsFromManifest(): PluginEntry[] {
   const thisDir =
     import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url));
   const packageRoot = findOwnPackageRoot(thisDir);
@@ -1342,9 +1364,17 @@ function discoverPluginsFromManifest(): PluginEntry[] {
       const HIDDEN_KEYS = new Set(["VERCEL_OIDC_TOKEN"]);
       const entries = index.plugins
         .map((p) => {
-          // Use manifest category if available, otherwise fall back to hardcoded categorization
-          const category = p.category ?? categorizePlugin(p.id);
+          const inferredCategory = categorizePlugin(p.id);
+          const category =
+            inferredCategory === "feature"
+              ? (p.category ?? inferredCategory)
+              : inferredCategory;
           const envKey = p.envKey;
+          const bundledMeta = readBundledPluginPackageMetadata(
+            packageRoot,
+            p.dirName,
+            p.npmName,
+          );
           const filteredConfigKeys = p.configKeys.filter(
             (k) => !HIDDEN_KEYS.has(k),
           );
@@ -1395,7 +1425,13 @@ function discoverPluginsFromManifest(): PluginEntry[] {
             version: p.version,
             pluginDeps: p.pluginDeps,
             ...(p.configUiHints ? { configUiHints: p.configUiHints } : {}),
-            icon: p.logoUrl ?? p.icon ?? null,
+            icon: p.logoUrl ?? p.icon ?? bundledMeta.icon ?? null,
+            homepage: p.homepage ?? bundledMeta.homepage,
+            repository:
+              p.repository ??
+              bundledMeta.repository ??
+              deriveMiladyRepositoryUrl(p.npmName, p.dirName),
+            setupGuideUrl: p.setupGuideUrl ?? resolvePluginSetupGuideUrl(p.id),
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -1473,6 +1509,8 @@ function categorizePlugin(
     "youtube",
     "youtube-streaming",
     "twitch-streaming",
+    "x-streaming",
+    "pumpfun-streaming",
   ];
   const databases = ["sql", "localdb", "inmemorydb"];
 
@@ -1481,6 +1519,122 @@ function categorizePlugin(
   if (connectors.includes(id)) return "connector";
   if (databases.includes(id)) return "database";
   return "feature";
+}
+
+const PLUGIN_SETUP_GUIDE_ROOT = "https://docs.milady.ai/plugin-setup-guide";
+const MILADY_REPO_ROOT = "https://github.com/milady-ai/milady";
+
+const PLUGIN_SETUP_GUIDE_ANCHORS: Record<string, string> = {
+  openai: "#openai",
+  anthropic: "#anthropic",
+  "google-genai": "#google-gemini",
+  groq: "#groq",
+  openrouter: "#openrouter",
+  xai: "#xai-grok",
+  ollama: "#ollama-local-models",
+  "local-ai": "#local-ai",
+  "vercel-ai-gateway": "#vercel-ai-gateway",
+  discord: "#discord",
+  telegram: "#telegram",
+  twitter: "#twitter--x",
+  slack: "#slack",
+  whatsapp: "#whatsapp",
+  instagram: "#instagram",
+  bluesky: "#bluesky",
+  farcaster: "#farcaster",
+  github: "#github",
+  twitch: "#twitch",
+  twilio: "#twilio-sms--voice",
+  matrix: "#matrix",
+  msteams: "#microsoft-teams",
+  "google-chat": "#google-chat",
+  signal: "#signal",
+  imessage: "#imessage-macos-only",
+  bluebubbles: "#bluebubbles-imessage-from-any-platform",
+  blooio: "#blooio-sms-via-api",
+  nostr: "#nostr",
+  line: "#line",
+  feishu: "#feishu-lark",
+  mattermost: "#mattermost",
+  "nextcloud-talk": "#nextcloud-talk",
+  tlon: "#tlon-urbit",
+  zalo: "#zalo-vietnam-messaging",
+  zalouser: "#zalo-user-personal",
+  acp: "#acp-agent-communication-protocol",
+  mcp: "#mcp-model-context-protocol",
+  iq: "#iq-solana-on-chain",
+  "gmail-watch": "#gmail-watch",
+  retake: "#retaketv",
+  "streaming-base": "#enable-streaming-streaming-base",
+  "twitch-streaming": "#twitch-streaming",
+  "youtube-streaming": "#youtube-streaming",
+  "x-streaming": "#x-streaming",
+  "pumpfun-streaming": "#pumpfun-streaming",
+  "custom-rtmp": "#custom-rtmp",
+};
+
+export function resolvePluginSetupGuideUrl(id: string): string | undefined {
+  const anchor = PLUGIN_SETUP_GUIDE_ANCHORS[id];
+  return anchor ? `${PLUGIN_SETUP_GUIDE_ROOT}${anchor}` : undefined;
+}
+
+export function normalizeRepositoryUrl(
+  repository: string | { type?: string; url?: string } | null | undefined,
+): string | undefined {
+  const raw =
+    typeof repository === "string"
+      ? repository.trim()
+      : repository?.url?.trim() || "";
+  if (!raw) return undefined;
+  if (/^[\w.-]+\/[\w.-]+$/.test(raw)) return `https://github.com/${raw}`;
+  if (raw.startsWith("git@github.com:")) {
+    return `https://github.com/${raw
+      .slice("git@github.com:".length)
+      .replace(/\.git$/, "")}`;
+  }
+  if (raw.startsWith("git+https://")) return raw.slice(4).replace(/\.git$/, "");
+  if (raw.startsWith("https://") || raw.startsWith("http://")) {
+    return raw.replace(/\.git$/, "");
+  }
+  return undefined;
+}
+
+function deriveMiladyRepositoryUrl(
+  npmName: string | undefined,
+  dirName: string | undefined,
+): string | undefined {
+  if (!npmName?.startsWith("@milady/")) return undefined;
+  if (!dirName?.startsWith("plugin-")) return undefined;
+  return `${MILADY_REPO_ROOT}/tree/main/packages/${dirName}`;
+}
+
+function readBundledPluginPackageMetadata(
+  packageRoot: string,
+  dirName: string,
+  npmName?: string,
+): { homepage?: string; repository?: string; icon?: string | null } {
+  const pkgPath = path.join(packageRoot, "packages", dirName, "package.json");
+  if (!fs.existsSync(pkgPath)) {
+    return { repository: deriveMiladyRepositoryUrl(npmName, dirName) };
+  }
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+      homepage?: string;
+      repository?: string | { type?: string; url?: string };
+      logoUrl?: string;
+      icon?: string;
+      elizaos?: { logoUrl?: string };
+    };
+    return {
+      homepage: pkg.homepage ?? undefined,
+      repository:
+        normalizeRepositoryUrl(pkg.repository) ??
+        deriveMiladyRepositoryUrl(npmName, dirName),
+      icon: pkg.logoUrl ?? pkg.elizaos?.logoUrl ?? pkg.icon ?? null,
+    };
+  } catch {
+    return { repository: deriveMiladyRepositoryUrl(npmName, dirName) };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1807,6 +1961,12 @@ async function discoverSkills(
   const workspaceSkills = path.join(workspaceDir, "skills");
   if (fs.existsSync(workspaceSkills)) {
     skillsDirs.add(workspaceSkills);
+  }
+
+  // Marketplace-installed skills (stored under .marketplace, skipped by dot-prefix filter)
+  const marketplaceSkills = path.join(workspaceDir, "skills", ".marketplace");
+  if (fs.existsSync(marketplaceSkills)) {
+    skillsDirs.add(marketplaceSkills);
   }
 
   // Extra dirs from config
@@ -2256,6 +2416,28 @@ function getCachedFile(filePath: string, mtimeMs: number): Buffer {
  * Serve built dashboard assets from apps/app/dist with SPA fallback.
  * Returns true when the request is handled.
  */
+export function injectApiBaseIntoHtml(
+  html: Buffer,
+  externalBase?: string | null,
+): Buffer {
+  const trimmedBase = externalBase?.trim();
+  if (!trimmedBase) return html;
+
+  const headCloseTag = "</head>";
+  const headCloseIndex = html.indexOf(headCloseTag);
+  if (headCloseIndex < 0) return html;
+
+  const injection = Buffer.from(
+    `<script>window.__MILADY_API_BASE__=${JSON.stringify(trimmedBase)};</script>`,
+  );
+
+  return Buffer.concat([
+    html.subarray(0, headCloseIndex),
+    injection,
+    html.subarray(headCloseIndex),
+  ]);
+}
+
 function serveStaticUi(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -2319,16 +2501,24 @@ function serveStaticUi(
   if (reqExt && reqExt !== ".html") return false;
 
   if (!uiIndexHtml) return false;
+
+  // When served behind a reverse proxy (e.g. Railway /proxy/PORT/), inject the
+  // API base so the UI client sends requests to the correct path prefix.
+  const html = injectApiBaseIntoHtml(
+    uiIndexHtml,
+    process.env.MILADY_EXTERNAL_BASE_URL,
+  );
+
   sendStaticResponse(
     req,
     res,
     200,
     {
       "Cache-Control": "public, max-age=0, must-revalidate",
-      "Content-Length": uiIndexHtml.length,
+      "Content-Length": html.length,
       "Content-Type": "text/html; charset=utf-8",
     },
-    uiIndexHtml,
+    html,
   );
   return true;
 }
@@ -4550,6 +4740,14 @@ const APP_ORIGIN_RE =
 const LOCAL_HOST_RE =
   /^(localhost|127\.0\.0\.1|\[?::1\]?|\[?0:0:0:0:0:0:0:1\]?|::ffff:127\.0\.0\.1)$/;
 
+/** Wildcard bind addresses that listen on all interfaces. */
+const WILDCARD_BIND_RE = /^(0\.0\.0\.0|::|0:0:0:0:0:0:0:0)$/;
+
+/** Strip an optional port suffix from a hostname string. */
+function stripPort(host: string): string {
+  return host.replace(/:\d+$/, "");
+}
+
 export function isAllowedHost(req: http.IncomingMessage): boolean {
   const raw = req.headers.host;
   if (!raw) return true; // No Host header → non-browser client (e.g. curl)
@@ -4567,24 +4765,47 @@ export function isAllowedHost(req: http.IncomingMessage): boolean {
     hostname = trimmed;
   } else {
     // IPv4 or hostname: localhost:31337 → localhost
-    hostname = trimmed.replace(/:\d+$/, "");
+    hostname = stripPort(trimmed);
   }
 
   if (!hostname) return true;
 
-  // Allow configured custom bind host (if non-loopback, the token gate
-  // enforced by ensureApiTokenForBindHost already protects the API)
-  const bindHost = process.env.MILADY_API_BIND?.trim().toLowerCase();
-  if (bindHost && hostname === bindHost.replace(/:\d+$/, "").trim()) {
+  const bindHost = (process.env.MILADY_API_BIND ?? "").trim().toLowerCase();
+
+  // When binding on all interfaces (0.0.0.0 / ::), any Host is acceptable —
+  // ensureApiTokenForBindHost already enforces a token for non-loopback binds.
+  if (WILDCARD_BIND_RE.test(stripPort(bindHost))) {
     return true;
   }
+
+  // Allow the exact configured bind hostname.
+  if (bindHost && hostname === stripPort(bindHost)) {
+    return true;
+  }
+
+  // Allow explicitly listed extra hostnames via MILADY_ALLOWED_HOSTS
+  // (comma-separated, e.g. "myserver.local,192.168.1.10").
+  const extra = process.env.MILADY_ALLOWED_HOSTS;
+  if (extra) {
+    const allowed = extra
+      .split(",")
+      .map((h) => stripPort(h.trim().toLowerCase()))
+      .filter(Boolean);
+    if (allowed.includes(hostname)) return true;
+  }
+
   return LOCAL_HOST_RE.test(hostname);
 }
 
-function resolveCorsOrigin(origin?: string): string | null {
+export function resolveCorsOrigin(origin?: string): string | null {
   if (!origin) return null;
   const trimmed = origin.trim();
   if (!trimmed) return null;
+
+  // When bound to a wildcard address, allow any origin. Non-loopback binds still
+  // require an explicit token, so this only relaxes the browser origin check.
+  const bindHost = (process.env.MILADY_API_BIND ?? "").trim().toLowerCase();
+  if (WILDCARD_BIND_RE.test(stripPort(bindHost))) return trimmed;
 
   // Explicit allowlist via env (comma-separated)
   const extra = process.env.MILADY_ALLOWED_ORIGINS;
@@ -5736,6 +5957,15 @@ function getCoordinatorFromRuntime(runtime: AgentRuntime): {
       taskContext: TaskContext,
     ) => Promise<CoordinationLLMResponse | null>,
   ) => void;
+  setSwarmCompleteCallback?: (
+    cb: (payload: {
+      tasks: TaskCompletionSummary[];
+      total: number;
+      completed: number;
+      stopped: number;
+      errored: number;
+    }) => Promise<void>,
+  ) => void;
 } | null {
   const coordinator = runtime.getService("SWARM_COORDINATOR");
   if (coordinator)
@@ -5774,6 +6004,104 @@ function wireCodingAgentWsBridge(st: ServerState): boolean {
     st.broadcastWs?.({ type: "pty-session-event", eventType, ...rest });
   });
   return true;
+}
+
+/**
+ * Wire the SwarmCoordinator's swarmCompleteCallback so that when all agents
+ * finish, we synthesize a summary via the agent's LLM and post it as a
+ * persisted message in the conversation.
+ */
+function wireCodingAgentSwarmSynthesis(st: ServerState): boolean {
+  if (!st.runtime) return false;
+  const coordinator = getCoordinatorFromRuntime(st.runtime);
+  if (!coordinator?.setSwarmCompleteCallback) return false;
+
+  coordinator.setSwarmCompleteCallback((payload) =>
+    handleSwarmSynthesis(st, payload),
+  );
+  return true;
+}
+
+/**
+ * Handle swarm completion by synthesizing a summary via the LLM.
+ * Extracted from wireCodingAgentSwarmSynthesis for testability.
+ *
+ * Paths: (A) LLM returns synthesis → route to user,
+ *        (B) LLM returns empty → warn,
+ *        (C) LLM throws → fallback generic message.
+ */
+export async function handleSwarmSynthesis(
+  st: { runtime: AgentRuntime | null },
+  payload: {
+    tasks: Array<{
+      sessionId: string;
+      label: string;
+      agentType: string;
+      originalTask: string;
+      status: string;
+      completionSummary: string;
+    }>;
+    total: number;
+    completed: number;
+    stopped: number;
+    errored: number;
+  },
+  routeMessage: (text: string, source: string) => Promise<void> = (
+    text,
+    source,
+  ) => routeAutonomyTextToUser(st as ServerState, text, source),
+): Promise<void> {
+  const runtime = st.runtime;
+  if (!runtime) {
+    logger.warn("[swarm-synthesis] No runtime available — skipping synthesis");
+    return;
+  }
+
+  logger.info(
+    `[swarm-synthesis] Generating synthesis for ${payload.total} tasks (${payload.completed} completed, ${payload.stopped} stopped, ${payload.errored} errored)`,
+  );
+
+  const taskLines = payload.tasks
+    .map(
+      (t) =>
+        `- [${t.status.toUpperCase()}] "${t.label}" (${t.agentType})\n  Task: ${t.originalTask}\n  Result: ${t.completionSummary || "No summary available"}`,
+    )
+    .join("\n\n");
+
+  const prompt =
+    `You are summarizing the results of a coding agent swarm for the user. ` +
+    `${payload.total} agents were dispatched. ${payload.completed} completed, ` +
+    `${payload.stopped} stopped, ${payload.errored} errored.\n\n` +
+    `Here are the individual task results:\n\n${taskLines}\n\n` +
+    `Write a concise, conversational summary of what was accomplished. ` +
+    `Highlight key outcomes (PRs created, issues found, research results). ` +
+    `If any tasks failed or stopped, mention what went wrong. ` +
+    `Keep your personality — be warm and helpful but brief.`;
+
+  try {
+    const synthesis = await runtime.useModel(ModelType.TEXT_SMALL, {
+      prompt,
+      maxTokens: 2048,
+      temperature: 0.7,
+    });
+
+    if (synthesis?.trim()) {
+      logger.info("[swarm-synthesis] Synthesis generated, routing to user");
+      await routeMessage(synthesis.trim(), "swarm_synthesis");
+    } else {
+      logger.warn("[swarm-synthesis] LLM returned empty synthesis");
+    }
+  } catch (err) {
+    logger.error(`[swarm-synthesis] LLM call failed: ${err}`);
+    const parts: string[] = [];
+    if (payload.completed > 0) parts.push(`${payload.completed} completed`);
+    if (payload.stopped > 0) parts.push(`${payload.stopped} stopped`);
+    if (payload.errored > 0) parts.push(`${payload.errored} errored`);
+    await routeMessage(
+      `All ${payload.total} coding agents finished (${parts.join(", ")}). Review their work when you're ready.`,
+      "coding-agent",
+    );
+  }
 }
 
 // ── Parse Action Block from Milaidy's Response ─────────────────────────
@@ -6251,7 +6579,16 @@ async function handleRequest(
   // DNS to 127.0.0.1 and read the unauthenticated localhost API from a
   // malicious page.
   if (!isAllowedHost(req)) {
-    json(res, { error: "Forbidden — invalid Host header" }, 403);
+    const incomingHost = req.headers.host ?? "your-hostname";
+    json(
+      res,
+      {
+        error: "Forbidden — invalid Host header",
+        hint: `To allow this host, set MILADY_ALLOWED_HOSTS=${incomingHost} in your environment, or access via http://localhost`,
+        docs: "https://docs.milady.ai/configuration#allowed-hosts",
+      },
+      403,
+    );
     return;
   }
 
@@ -9387,6 +9724,13 @@ async function handleRequest(
               ? body.source
               : "clawhub",
         });
+
+        state.skills = await discoverSkills(
+          workspaceDir,
+          state.config,
+          state.runtime,
+        );
+
         json(res, { ok: true, skill: result });
       }
     } catch (err) {
@@ -9417,6 +9761,13 @@ async function handleRequest(
         state.config.agents?.defaults?.workspace ??
         resolveDefaultAgentWorkspaceDir();
       const result = await uninstallMarketplaceSkill(workspaceDir, uninstallId);
+
+      state.skills = await discoverSkills(
+        workspaceDir,
+        state.config,
+        state.runtime,
+      );
+
       json(res, { ok: true, skill: result });
     } catch (err) {
       error(
@@ -11385,10 +11736,11 @@ async function handleRequest(
     }
 
     const tradePermissionMode = resolveTradePermissionMode(state.config);
+    const isAgentRequest = isAgentAutomationRequest(req);
     const hasLocalKey = Boolean(process.env.EVM_PRIVATE_KEY?.trim());
     const canExecuteLocally = canUseLocalTradeExecution(
       tradePermissionMode,
-      false,
+      isAgentRequest,
     );
     const addrs = getWalletAddresses();
 
@@ -13094,7 +13446,8 @@ async function handleRequest(
     // Fallback to @elizaos/plugin-agent-orchestrator (npm)
     if (!handled) {
       try {
-        const orchestratorPlugin = await import(
+        // biome-ignore lint/suspicious/noExplicitAny: legacy route handler may not exist in 2.x
+        const orchestratorPlugin: any = await import(
           "@elizaos/plugin-agent-orchestrator"
         );
         if (orchestratorPlugin.createCodingAgentRouteHandler) {
@@ -14134,7 +14487,7 @@ async function handleRequest(
     state.broadcastWs?.({
       type: "emote",
       emoteId: emote.id,
-      glbPath: emote.glbPath,
+      path: emote.path,
       duration: emote.duration,
       loop: emote.loop,
     });
@@ -15115,6 +15468,7 @@ export async function startApiServer(opts?: {
             wireChatBridge: wireCodingAgentChatBridge,
             wireWsBridge: wireCodingAgentWsBridge,
             wireEventRouting: wireCoordinatorEventRouting,
+            wireSwarmSynthesis: wireCodingAgentSwarmSynthesis,
             context: "restart",
             logger,
           });
@@ -15567,6 +15921,7 @@ export async function startApiServer(opts?: {
       wireChatBridge: wireCodingAgentChatBridge,
       wireWsBridge: wireCodingAgentWsBridge,
       wireEventRouting: wireCoordinatorEventRouting,
+      wireSwarmSynthesis: wireCodingAgentSwarmSynthesis,
       context: "boot",
       logger,
     });
@@ -15936,6 +16291,7 @@ export async function startApiServer(opts?: {
       wireChatBridge: wireCodingAgentChatBridge,
       wireWsBridge: wireCodingAgentWsBridge,
       wireEventRouting: wireCoordinatorEventRouting,
+      wireSwarmSynthesis: wireCodingAgentSwarmSynthesis,
       context: "restart",
       logger,
     });

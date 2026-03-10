@@ -33,6 +33,13 @@ import type {
 
 const UiContext = createContext<UiRenderContext | null>(null);
 
+const BLOCKED_LINK_PROTOCOLS = new Set([
+  "javascript",
+  "data",
+  "vbscript",
+  "file",
+]);
+
 function useUiCtx(): UiRenderContext {
   const ctx = useContext(UiContext);
   if (!ctx) throw new Error("UiRenderer context missing");
@@ -179,6 +186,34 @@ export function evaluateUiVisibility(
     return !evaluateUiVisibility(condition.not, state, auth);
 
   return true;
+}
+
+export function sanitizeLinkHref(href: unknown): string {
+  // Strip ASCII control chars (tab, LF, CR) that browsers silently remove
+  // during URL parsing, preventing bypass attacks like "java\nscript:alert(1)".
+  const raw = String(href ?? "#")
+    .trim()
+    .replace(/[\t\n\r]/g, "");
+  if (!raw) return "#";
+
+  // Keep relative/hash links unchanged.
+  if (
+    raw.startsWith("#") ||
+    raw.startsWith("/") ||
+    raw.startsWith("./") ||
+    raw.startsWith("../") ||
+    raw.startsWith("?")
+  ) {
+    return raw;
+  }
+
+  const match = /^([a-zA-Z][a-zA-Z\d+.-]*):/.exec(raw);
+  if (!match) return raw;
+
+  const protocol = match[1].toLowerCase();
+  if (BLOCKED_LINK_PROTOCOLS.has(protocol)) return "#";
+
+  return raw;
 }
 
 // ── Built-in validators ─────────────────────────────────────────────
@@ -1033,9 +1068,11 @@ const ButtonComponent: ComponentFn = (props, _children, ctx, el) => {
 };
 
 const LinkComponent: ComponentFn = (props, _children, ctx, el) => {
+  const safeHref = sanitizeLinkHref(props.href);
+
   return (
     <a
-      href={String(props.href ?? "#")}
+      href={safeHref}
       className="text-xs text-[var(--accent)] underline hover:opacity-80"
       target={props.external ? "_blank" : undefined}
       rel={props.external ? "noopener noreferrer" : undefined}
@@ -1160,6 +1197,40 @@ const PaginationComponent: ComponentFn = (props, _children, ctx) => {
       >
         &rarr;
       </button>
+    </div>
+  );
+};
+
+// ── Metric / KPI ────────────────────────────────────────────────────
+
+const MetricComponent: ComponentFn = (props) => {
+  const trend = props.trend as string | undefined;
+  const trendColor =
+    trend === "up"
+      ? "text-green-400"
+      : trend === "down"
+        ? "text-red-400"
+        : "text-[var(--muted)]";
+  return (
+    <div className="flex flex-col gap-0.5 p-3 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+      <div className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-medium">
+        {String(props.label ?? "")}
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-xl font-semibold text-[var(--txt)]">
+          {props.value != null ? String(props.value) : "—"}
+        </span>
+        {props.unit != null && (
+          <span className="text-xs text-[var(--muted)]">
+            {String(props.unit)}
+          </span>
+        )}
+      </div>
+      {props.change != null && (
+        <div className={`text-[11px] font-medium ${trendColor}`}>
+          {String(props.change)}
+        </div>
+      )}
     </div>
   );
 };
@@ -1494,6 +1565,8 @@ const COMPONENTS: Record<string, ComponentFn> = {
   DropdownMenu: DropdownMenuComponent,
   Tabs: TabsComponent,
   Pagination: PaginationComponent,
+  // Metric
+  Metric: MetricComponent,
   // Visualization
   BarGraph: BarGraphComponent,
   LineGraph: LineGraphComponent,

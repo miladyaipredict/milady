@@ -9,7 +9,13 @@
  */
 import crypto from "node:crypto";
 import type { Dirent } from "node:fs";
-import { existsSync, mkdirSync, symlinkSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -648,10 +654,14 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   piAi: PI_AI_PLUGIN_PACKAGE,
   x402: "@elizaos/plugin-x402",
   "coding-agent": "@elizaos/plugin-agent-orchestrator",
+  "streaming-base": "@milady/plugin-streaming-base",
   "twitch-streaming": "@milady/plugin-twitch-streaming",
   "youtube-streaming": "@milady/plugin-youtube-streaming",
   evm: "@elizaos/plugin-evm",
   polymarket: "@elizaos/plugin-polymarket",
+  "custom-rtmp": "@milady/plugin-custom-rtmp",
+  "pumpfun-streaming": "@milady/plugin-pumpfun-streaming",
+  "x-streaming": "@milady/plugin-x-streaming",
 };
 
 function looksLikePlugin(value: unknown): value is Plugin {
@@ -1143,6 +1153,28 @@ function getWorkspacePluginOverridePath(pluginName: string): string | null {
   return null;
 }
 
+export function resolveMiladyPluginImportSpecifier(
+  pluginName: string,
+  runtimeModuleUrl = import.meta.url,
+): string {
+  if (!pluginName.startsWith("@milady/plugin-")) {
+    return pluginName;
+  }
+
+  const shortName = pluginName.replace("@milady/plugin-", "");
+  const thisDir = path.dirname(fileURLToPath(runtimeModuleUrl));
+  const distRoot = thisDir.endsWith("runtime")
+    ? path.resolve(thisDir, "..")
+    : thisDir;
+  const indexPath = path.resolve(distRoot, "plugins", shortName, "index.js");
+
+  return existsSync(indexPath) ? pathToFileURL(indexPath).href : pluginName;
+}
+
+export function shouldIgnoreMissingPluginExport(pluginName: string): boolean {
+  return pluginName === "@milady/plugin-streaming-base";
+}
+
 // ---------------------------------------------------------------------------
 // Plugin resolution
 // ---------------------------------------------------------------------------
@@ -1411,23 +1443,10 @@ async function resolvePlugins(
           }
         }
       } else if (pluginName.startsWith("@milady/plugin-")) {
-        // Local Milady plugin — resolve from the compiled dist directory.
-        // Import the index.js directly (importFromPath's resolvePackageEntry
-        // fails because there's no package.json and the extensionless
-        // fallback doesn't match the .js file on disk).
-        const shortName = pluginName.replace("@milady/plugin-", "");
-        const thisDir = path.dirname(fileURLToPath(import.meta.url));
-        const distRoot = thisDir.endsWith("runtime")
-          ? path.resolve(thisDir, "..")
-          : thisDir;
-        const indexPath = path.resolve(
-          distRoot,
-          "plugins",
-          shortName,
-          "index.js",
-        );
+        // Milady plugins can resolve either from bundled local wrappers
+        // under milady-dist/plugins/* or from packaged node_modules.
         mod = (await import(
-          pathToFileURL(indexPath).href
+          resolveMiladyPluginImportSpecifier(pluginName)
         )) as PluginModuleShape;
       } else {
         // Built-in/npm plugin — try bundled static import first, then
@@ -1451,6 +1470,13 @@ async function resolvePlugins(
         logger.debug(`[milady] ✓ Loaded plugin: ${pluginName}`);
         return { name: pluginName, plugin: wrappedPlugin };
       } else {
+        if (shouldIgnoreMissingPluginExport(pluginName)) {
+          logger.info(
+            `[milady] Skipping helper package ${pluginName}: no Plugin export is expected`,
+          );
+          return null;
+        }
+
         const msg = `[milady] Plugin ${pluginName} did not export a valid Plugin object`;
         failedPlugins.push({
           name: pluginName,
@@ -1978,7 +2004,62 @@ export function applyDatabaseConfigToEnv(config: MiladyConfig): void {
       logger.info(
         `[milady] PGlite data dir: ${dataDir} (${alreadyExisted ? "existed" : "created"})`,
       );
+
+      // Remove stale postmaster.pid left by a crashed process. Without this,
+      // PGlite sees the lock and either fails or triggers the destructive
+      // resetPgliteDataDir path, wiping all conversation history.
+      cleanStalePglitePid(dataDir);
     }
+  }
+}
+
+/**
+ * Check for and remove a stale postmaster.pid in the PGlite data directory.
+ * The pid file is stale if the recorded process is no longer running.
+ */
+export function cleanStalePglitePid(dataDir: string): void {
+  const pidPath = path.join(dataDir, "postmaster.pid");
+  if (!existsSync(pidPath)) return;
+
+  try {
+    const content = readFileSync(pidPath, "utf-8");
+    const firstLine = content.split("\n")[0]?.trim();
+    const pid = parseInt(firstLine, 10);
+
+    if (Number.isNaN(pid) || pid <= 0) {
+      // Malformed pid file — remove it
+      unlinkSync(pidPath);
+      logger.warn(`[milady] Removed malformed PGlite postmaster.pid`);
+      return;
+    }
+
+    // Check if the process is still alive
+    try {
+      process.kill(pid, 0); // signal 0 = existence check, doesn't kill
+      // Process exists — pid file is NOT stale, leave it alone
+      logger.info(
+        `[milady] PGlite postmaster.pid references running process ${pid} — leaving intact`,
+      );
+    } catch (killErr: unknown) {
+      const code = (killErr as NodeJS.ErrnoException).code;
+      if (code === "ESRCH") {
+        // Process doesn't exist — stale pid file, safe to remove
+        unlinkSync(pidPath);
+        logger.warn(
+          `[milady] Removed stale PGlite postmaster.pid (process ${pid} not running)`,
+        );
+      } else {
+        // EPERM or other — process may be alive under a different user,
+        // leave the file alone to avoid data directory corruption
+        logger.warn(
+          `[milady] Cannot confirm postmaster.pid staleness (${code}) — leaving intact`,
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      `[milady] Failed to check PGlite postmaster.pid: ${formatError(err)}`,
+    );
   }
 }
 

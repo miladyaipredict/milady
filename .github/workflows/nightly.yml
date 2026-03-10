@@ -108,7 +108,10 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Run repository postinstall patches
+        run: bun run postinstall
 
       - name: Compute nightly version
         id: version
@@ -196,7 +199,10 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Run repository postinstall patches
+        run: bun run postinstall
 
       - name: Set nightly version
         run: |
