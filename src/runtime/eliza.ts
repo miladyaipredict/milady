@@ -1172,9 +1172,15 @@ export function resolveMiladyPluginImportSpecifier(
   const distRoot = thisDir.endsWith("runtime")
     ? path.resolve(thisDir, "..")
     : thisDir;
-  const indexPath = path.resolve(distRoot, "plugins", shortName, "index.js");
+  const indexJs = path.resolve(distRoot, "plugins", shortName, "index.js");
+  const indexTs = path.resolve(distRoot, "plugins", shortName, "index.ts");
+  const indexPath = existsSync(indexJs)
+    ? indexJs
+    : existsSync(indexTs)
+      ? indexTs
+      : null;
 
-  return existsSync(indexPath) ? pathToFileURL(indexPath).href : pluginName;
+  return indexPath ? pathToFileURL(indexPath).href : pluginName;
 }
 
 export function shouldIgnoreMissingPluginExport(pluginName: string): boolean {
@@ -3718,27 +3724,55 @@ export async function startEliza(
     //        are always included in the action filter's candidate set. The BM25
     //        relevance filter can rank them too low for "close all" / "sell"
     //        requests, causing the LLM's selected action to be dropped.
+    //        The action_filter service starts asynchronously after runtime.initialize(),
+    //        so we use getServiceLoadPromise() to wait for it.
     if (process.env.POLYMARKET_PRIVATE_KEY) {
-      const actionFilter = runtime.getService("action_filter") as {
-        filterConfig?: { alwaysIncludeActions?: string[] };
-      } | null;
-      if (actionFilter?.filterConfig?.alwaysIncludeActions) {
-        const pmActions = [
-          "POLYMARKET_PLACE_ORDER",
-          "POLYMARKET_GET_MARKETS",
-          "POLYMARKET_RESEARCH_MARKET",
-        ];
-        for (const name of pmActions) {
-          if (
-            !actionFilter.filterConfig.alwaysIncludeActions.includes(name)
-          ) {
-            actionFilter.filterConfig.alwaysIncludeActions.push(name);
+      const patchActionFilter = async () => {
+        try {
+          const svc = runtime.getService("action_filter") as {
+            filterConfig?: { alwaysIncludeActions?: string[] };
+          } | null;
+          // If not ready yet, wait up to 10s for it to register
+          const actionFilter = svc ?? (await Promise.race([
+            runtime.getServiceLoadPromise("action_filter"),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+          ])) as { filterConfig?: { alwaysIncludeActions?: string[] } } | null;
+
+          if (actionFilter?.filterConfig) {
+            if (!actionFilter.filterConfig.alwaysIncludeActions) {
+              actionFilter.filterConfig.alwaysIncludeActions = [];
+            }
+            const pmActions = [
+              "POLYMARKET_PLACE_ORDER",
+              "POLYMARKET_GET_MARKETS",
+              "POLYMARKET_RESEARCH_MARKET",
+              "CANCEL_POLYMARKET_ORDER",
+              "GET_POLYMARKET_PORTFOLIO",
+              "GET_POLYMARKET_OPEN_ORDERS",
+            ];
+            for (const name of pmActions) {
+              if (
+                !actionFilter.filterConfig.alwaysIncludeActions.includes(name)
+              ) {
+                actionFilter.filterConfig.alwaysIncludeActions.push(name);
+              }
+            }
+            logger.info(
+              "[milady] Added Polymarket actions to action filter always-include list",
+            );
+          } else {
+            logger.warn(
+              "[milady] action_filter service not available after timeout — Polymarket actions may be filtered out",
+            );
           }
+        } catch (err) {
+          logger.warn(
+            `[milady] Failed to patch action_filter for Polymarket: ${formatError(err)}`,
+          );
         }
-        logger.info(
-          "[milady] Added Polymarket actions to action filter always-include list",
-        );
-      }
+      };
+      // Run async — don't block runtime startup
+      patchActionFilter();
     }
 
     // 8b. Ensure AutonomyService is available for trigger dispatch.

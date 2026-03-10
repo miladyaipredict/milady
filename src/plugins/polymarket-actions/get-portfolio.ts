@@ -84,6 +84,7 @@ function buildPositions(state: AccountStateLike) {
 
 export const getPortfolioAction: Action = {
   name: "GET_POLYMARKET_PORTFOLIO",
+  tags: ["always-include", "polymarket"],
   similes: [
     "POLYMARKET_PORTFOLIO",
     "POLYMARKET_BALANCE",

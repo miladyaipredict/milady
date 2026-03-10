@@ -13,6 +13,7 @@ import {
 
 export const cancelOrderAction: Action = {
   name: "CANCEL_POLYMARKET_ORDER",
+  tags: ["always-include", "polymarket"],
   similes: [
     "POLYMARKET_CANCEL_ORDER",
     "POLYMARKET_CANCEL_BET",
@@ -26,9 +27,33 @@ export const cancelOrderAction: Action = {
   handler: async (runtime, _message, _state, options) => {
     try {
       const params = (options as HandlerOptions | undefined)?.parameters;
-      const orderId =
+      let orderId =
         typeof params?.orderId === "string" ? params.orderId.trim() : undefined;
-      const cancelAll = params?.cancelAll === true;
+      let cancelAll = params?.cancelAll === true;
+
+      // Infer intent from the message text if the LLM didn't set parameters
+      const msgText =
+        typeof _message?.content === "string"
+          ? _message.content
+          : (_message?.content as { text?: string })?.text ?? "";
+      const lc = msgText.toLowerCase();
+
+      // Detect "cancel all" / "cancel both" / "cancel everything" intent
+      if (
+        !cancelAll &&
+        !orderId &&
+        /cancel\s*(all|both|every|everything|them)/i.test(lc)
+      ) {
+        cancelAll = true;
+      }
+
+      // Try to extract an orderId (0x hex string) from the message text
+      if (!orderId && !cancelAll) {
+        const hexMatch = msgText.match(/\b(0x[a-fA-F0-9]{40,})\b/);
+        if (hexMatch) {
+          orderId = hexMatch[1];
+        }
+      }
 
       const svc = getServiceOrThrow(runtime);
       const client = svc.getAuthenticatedClient();
@@ -49,7 +74,8 @@ export const cancelOrderAction: Action = {
         };
       }
 
-      // No orderId — list open orders so the agent can pick one
+      // No orderId and no cancelAll — fetch open orders and cancel them all
+      // (the user invoked the cancel action, so they want to cancel something)
       const rawOrders = await client.getOpenOrders();
       const orders: OpenOrderLike[] =
         (rawOrders as any)?.data ?? rawOrders ?? [];
@@ -57,12 +83,11 @@ export const cancelOrderAction: Action = {
         return { text: "No open orders to cancel.", success: true };
       }
 
-      const lines = orders.map(
-        (o: OpenOrderLike) =>
-          `  ${o.id}: ${o.side} ${o.original_size} @ ${o.price} (${o.order_type}, matched: ${o.size_matched})`,
-      );
+      // If there are open orders and the action was explicitly invoked, cancel all
+      await client.cancelAll();
+      await invalidateCache(runtime);
       return {
-        text: `Open orders:\n${lines.join("\n")}\n\nProvide an orderId to cancel, or set cancelAll=true.`,
+        text: `Cancelled ${orders.length} open order(s).`,
         success: true,
         data: { count: orders.length },
       };

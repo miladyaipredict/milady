@@ -17,6 +17,7 @@ type Interval = (typeof VALID_INTERVALS)[number];
 
 export const getPriceHistoryAction: Action = {
   name: "GET_POLYMARKET_PRICE_HISTORY",
+  tags: ["always-include", "polymarket"],
   similes: [
     "POLYMARKET_PRICE_HISTORY",
     "POLYMARKET_PRICE_CHART",

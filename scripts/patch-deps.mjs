@@ -292,6 +292,21 @@ for (const target of targets) {
     }
   }
 
+  // createEntities: add onConflictDoNothing() to prevent duplicate entity errors
+  const createEntitiesBuggy = `await tx.insert(entityTable).values(normalizedEntities);`;
+  const createEntitiesFixed = `await tx.insert(entityTable).values(normalizedEntities).onConflictDoNothing();`;
+  if (src.includes(createEntitiesFixed)) {
+    console.log("  - createEntities onConflictDoNothing patch already present.");
+  } else if (src.includes(createEntitiesBuggy)) {
+    src = src.replace(createEntitiesBuggy, createEntitiesFixed);
+    patched += 1;
+    console.log("  - Applied createEntities onConflictDoNothing() patch.");
+  } else {
+    console.log(
+      "  - createEntities() signature changed — entity patch may no longer be needed.",
+    );
+  }
+
   if (patched > 0) {
     writeFileSync(target, src, "utf8");
     console.log(`  - Wrote ${patched} patch(es) to this file.`);
@@ -2385,6 +2400,94 @@ const validateActionRegex = () => true;`;
     }
   } else if (polymarketSrc.includes("order failed:")) {
     console.log("[patch-deps] polymarket failed-order sentence patch already present.");
+  }
+
+  // ── Action filter always-include tags: ensure Polymarket actions survive BM25 filtering ──
+  // The elizaOS action filter drops low-scoring actions. Adding the "always-include"
+  // tag to action objects ensures the filter natively preserves them without relying
+  // on runtime config patching (which can fail due to service startup timing).
+  const alwaysIncludeMarker = "pm-always-include-tags-v1";
+  if (!polymarketSrc.includes(alwaysIncludeMarker)) {
+    const actionNames = [
+      "POLYMARKET_PLACE_ORDER",
+      "POLYMARKET_GET_MARKETS",
+      "POLYMARKET_RESEARCH_MARKET",
+      "POLYMARKET_GET_TOKEN_INFO",
+      "POLYMARKET_GET_ORDER_BOOK_DEPTH",
+      "POLYMARKET_CHECK_ORDER_SCORING",
+    ];
+    let tagsPatched = 0;
+    for (const actionName of actionNames) {
+      const needle = `name: "${actionName}",\n  similes:`;
+      const replacement = `name: "${actionName}",\n  tags: ["always-include", "polymarket"], /* ${alwaysIncludeMarker} */\n  similes:`;
+      if (polymarketSrc.includes(needle)) {
+        polymarketSrc = polymarketSrc.replace(needle, replacement);
+        tagsPatched++;
+      }
+    }
+    if (tagsPatched > 0) {
+      polymarketPatched++;
+      console.log(`[patch-deps] Applied polymarket always-include tags patch (${tagsPatched} actions).`);
+    } else {
+      console.log("[patch-deps] polymarket always-include tags: action patterns not found; skipping.");
+    }
+  } else {
+    console.log("[patch-deps] polymarket always-include tags patch already present.");
+  }
+
+  // ── Sell price derivation: use best bid from order book when price is default $0.50 ──
+  // The upstream code at line ~22577 defaults to 0.5 when no price is specified,
+  // but the order book lookup at ~22650 only runs AFTER the acknowledgement is sent.
+  // Problem: for SELL orders the $0.50 default causes FAK orders to fail when
+  // the actual market price is much higher (e.g. 0.85). The fix ensures the
+  // order book price override at ~22650 always fires for SELL orders by widening
+  // the condition to also check when side is SELL.
+  const sellPriceMarker = "sell-best-bid-patch-v1";
+  if (!polymarketSrc.includes(sellPriceMarker)) {
+    const oldPriceCheck = `if (price <= 0 || price === 0.5) {
+        const bestAsk = orderBook.asks?.[0]?.price;
+        const bestBid = orderBook.bids?.[0]?.price;
+        if (side === "BUY" && bestAsk) {`;
+    if (polymarketSrc.includes(oldPriceCheck)) {
+      polymarketSrc = polymarketSrc.replace(
+        oldPriceCheck,
+        `/* ${sellPriceMarker} */ if (price <= 0 || price === 0.5 || side === "SELL") {
+        const bestAsk = orderBook.asks?.[0]?.price;
+        const bestBid = orderBook.bids?.[0]?.price;
+        if (side === "BUY" && bestAsk) {`,
+      );
+      polymarketPatched++;
+      console.log("[patch-deps] Applied polymarket sell-best-bid price patch.");
+    } else {
+      console.log("[patch-deps] polymarket sell-best-bid: target pattern not found; skipping.");
+    }
+  } else {
+    console.log("[patch-deps] polymarket sell-best-bid price patch already present.");
+  }
+
+  // ── Minimum order size: enforce CLOB minimum of 5 shares ──
+  // Polymarket CLOB rejects orders with fewer than 5 shares. The upstream code
+  // only checks dollar value (>= $0.50) but not share count. This patch adds
+  // a pre-flight check and helpful error message.
+  const minSizeMarker = "min-share-size-patch-v1";
+  if (!polymarketSrc.includes(minSizeMarker)) {
+    const minSizeTarget = `if (orderValue < 0.5) {`;
+    if (polymarketSrc.includes(minSizeTarget)) {
+      polymarketSrc = polymarketSrc.replace(
+        minSizeTarget,
+        `/* ${minSizeMarker} */ if (size < 5) {
+      await sendError(callback, \`Order size (\${size} shares) is below Polymarket minimum of 5 shares. Try increasing the amount.\`, "Minimum 5 shares required");
+      return { success: false, text: \`Order too small: \${size} shares < 5 minimum\`, error: "min_order_size" };
+    }
+    if (orderValue < 0.5) {`,
+      );
+      polymarketPatched++;
+      console.log("[patch-deps] Applied polymarket min-share-size patch.");
+    } else {
+      console.log("[patch-deps] polymarket min-share-size: target pattern not found; skipping.");
+    }
+  } else {
+    console.log("[patch-deps] polymarket min-share-size patch already present.");
   }
 
   if (polymarketPatched > 0) {

@@ -14,6 +14,7 @@ import {
 
 export const getOpenOrdersAction: Action = {
   name: "GET_POLYMARKET_OPEN_ORDERS",
+  tags: ["always-include", "polymarket"],
   similes: [
     "POLYMARKET_OPEN_ORDERS",
     "POLYMARKET_PENDING_ORDERS",

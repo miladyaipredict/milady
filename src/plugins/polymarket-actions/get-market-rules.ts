@@ -13,6 +13,7 @@ import {
 
 export const getMarketRulesAction: Action = {
   name: "GET_POLYMARKET_RULES",
+  tags: ["always-include", "polymarket"],
   similes: [
     "POLYMARKET_MARKET_RULES",
     "POLYMARKET_RESOLUTION_RULES",
