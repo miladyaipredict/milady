@@ -233,6 +233,39 @@ export function CompanionHubNav({
         </span>
       </button>
 
+      {/* zERC20 */}
+      <button
+        type="button"
+        className="anime-hub-btn"
+        onClick={() => setTab("zerc20" as any)}
+        style={
+          {
+            "--ac-accent": "#22c55e",
+            "--ac-accent-rgb": "34, 197, 94",
+          } as React.CSSProperties
+        }
+      >
+        <div className="anime-hub-btn-icon">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <span className="anime-hub-btn-label">
+          {t("nav.zerc20") || "zERC20"}
+        </span>
+      </button>
+
       {/* Stream */}
       <button
         type="button"

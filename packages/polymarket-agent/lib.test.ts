@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { PrivateKeySchema, loadEnvConfig, type CliOptions } from "./lib";
+import {
+  type CliOptions,
+  loadEnvConfig,
+  PrivateKeySchema,
+  parseArgs,
+} from "./lib";
 
 const baseOpts: CliOptions = {
   execute: false,
@@ -69,3 +74,14 @@ describe("loadEnvConfig", () => {
   });
 });
 
+describe("parseArgs", () => {
+  test("accepts settings command", () => {
+    const parsed = parseArgs(["settings"]);
+    expect(parsed.command).toBe("settings");
+  });
+
+  test("falls back to help for unknown commands", () => {
+    const parsed = parseArgs(["once"]);
+    expect(parsed.command).toBe("help");
+  });
+});

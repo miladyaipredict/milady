@@ -9,6 +9,7 @@ import {
   Gamepad2,
   Heart,
   LineChart,
+  Lock,
   MessageSquare,
   Radio,
   Settings,
@@ -54,10 +55,11 @@ export type Tab =
   | "settings"
   | "logs"
   | "security"
-  | "polymarket";
+  | "polymarket"
+  | "zerc20";
 
 /** Tabs that open as modal overlays instead of navigating to a page. */
-export const MODAL_TABS = new Set<Tab>(["polymarket"]);
+export const MODAL_TABS = new Set<Tab>(["polymarket", "zerc20"]);
 
 export interface TabGroup {
   label: string;
@@ -102,6 +104,12 @@ export const ALL_TAB_GROUPS: TabGroup[] = [
     tabs: ["polymarket"],
     icon: LineChart,
     description: "Live prediction market positions",
+  },
+  {
+    label: "zERC20",
+    tabs: ["zerc20"],
+    icon: Lock,
+    description: "Private token transfers with ZK proofs",
   },
   {
     label: "Knowledge",
@@ -183,6 +191,7 @@ const TAB_PATHS: Record<Tab, string> = {
   logs: "/logs",
   security: "/security",
   polymarket: "/polymarket",
+  zerc20: "/zerc20",
 };
 
 /** Legacy path redirects — old paths that now map to new tabs. */
@@ -301,6 +310,8 @@ export function titleForTab(tab: Tab): string {
       return "Security";
     case "polymarket":
       return "Polymarket";
+    case "zerc20":
+      return "zERC20";
     default:
       return "Milady";
   }

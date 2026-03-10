@@ -1,5 +1,7 @@
 .env
 node_modules/
-bin/
+bin/*
+!bin/
+!bin/polyagent.js
 .eliza-polymarket/
 *.log

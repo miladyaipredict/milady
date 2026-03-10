@@ -358,6 +358,31 @@ export function Header() {
               </button>
             </IconButtonTooltip>
 
+            {/* zERC20 Privacy */}
+            <IconButtonTooltip label="zERC20 Private Transfers">
+              <button
+                type="button"
+                onClick={() => setTab("zerc20" as any)}
+                aria-label="zERC20 Private Transfers"
+                className="inline-flex items-center justify-center w-11 h-11 min-w-[44px] min-h-[44px] border border-[#22c55e]/40 bg-[#22c55e]/8 cursor-pointer text-[#22c55e] text-sm leading-none hover:border-[#22c55e]/60 hover:bg-[#22c55e]/15 transition-all duration-200 hover:shadow-sm hover:scale-105 active:scale-95 rounded-md"
+                data-testid="zerc20-btn"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </button>
+            </IconButtonTooltip>
+
             {/* Wallet Dropdown */}
             {(evmShort || solShort) && (
               <div className="wallet-wrapper relative inline-flex shrink-0 group">

@@ -32,6 +32,7 @@ import { MemoryDebugPanel } from "./components/MemoryDebugPanel";
 import { Nav } from "./components/Nav";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { PolymarketActivityPanel } from "./components/PolymarketActivityPanel";
+import { Zerc20Panel } from "./components/Zerc20Panel";
 import { PairingView } from "./components/PairingView";
 import { RestartBanner } from "./components/RestartBanner";
 import { SaveCommandModal } from "./components/SaveCommandModal";
@@ -155,12 +156,14 @@ export function App() {
     return () => window.removeEventListener("stream-popout", handler);
   }, [setTab]);
 
-  // Modal tabs (e.g. Polymarket) — open as overlay, don't change current view
+  // Modal tabs (e.g. Polymarket, zERC20) — open as overlay, don't change current view
   const [polymarketOpen, setPolymarketOpen] = useState(false);
+  const [zerc20Open, setZerc20Open] = useState(false);
   const prevTabRef = useRef<Tab>(effectiveTab);
   useEffect(() => {
     if (MODAL_TABS.has(effectiveTab)) {
       if (effectiveTab === "polymarket") setPolymarketOpen((v) => !v);
+      if (effectiveTab === "zerc20") setZerc20Open((v) => !v);
       // Revert to previous tab so the underlying view doesn't change
       setTab(prevTabRef.current);
     } else {
@@ -415,6 +418,35 @@ export function App() {
             </div>
           </div>
         )}
+        {/* zERC20 modal overlay */}
+        {zerc20Open && (
+          <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="zERC20">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm w-full h-full border-0 cursor-pointer"
+              onClick={() => setZerc20Open(false)}
+              aria-label="Close zERC20 panel"
+            />
+            <div className="absolute right-4 top-16 bottom-4 w-[560px] max-w-[92vw] bg-[#0d1117] border border-[#22c55e]/20 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-[#22c55e]/15">
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span className="text-sm font-semibold text-white/90">zERC20</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#22c55e]/15 text-[#22c55e]/80 font-medium">Private</span>
+                </div>
+                <button
+                  type="button"
+                  className="w-8 h-8 flex items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors"
+                  onClick={() => setZerc20Open(false)}
+                  aria-label="Close"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <Zerc20Panel />
+            </div>
+          </div>
+        )}
         <CommandPalette />
         <EmotePicker />
         <RestartBanner />
@@ -535,6 +567,35 @@ export function App() {
               </button>
             </div>
             <PolymarketActivityPanel />
+          </div>
+        </div>
+      )}
+      {/* zERC20 modal overlay */}
+      {zerc20Open && (
+        <div className="fixed inset-0 z-[130]" role="dialog" aria-modal="true" aria-label="zERC20">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm w-full h-full border-0 cursor-pointer"
+            onClick={() => setZerc20Open(false)}
+            aria-label="Close zERC20 panel"
+          />
+          <div className="absolute right-4 top-16 bottom-4 w-[560px] max-w-[92vw] bg-[#0d1117] border border-[#22c55e]/20 rounded-xl shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-[#0d1117] border-b border-[#22c55e]/15">
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span className="text-sm font-semibold text-white/90">zERC20</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#22c55e]/15 text-[#22c55e]/80 font-medium">Private</span>
+              </div>
+              <button
+                type="button"
+                className="w-8 h-8 flex items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors"
+                onClick={() => setZerc20Open(false)}
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <Zerc20Panel />
           </div>
         </div>
       )}

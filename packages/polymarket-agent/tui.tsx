@@ -67,10 +67,25 @@ type InkKey = {
   name?: string;
 };
 import { v4 as uuidv4 } from "uuid";
-import POLYMARKET_SERVICE_NAME from "@elizaos/plugin-polymarket";
-import type PolymarketService from "@elizaos/plugin-polymarket";
-import type Market from "@elizaos/plugin-polymarket";
-import type MarketsResponse from "@elizaos/plugin-polymarket";
+import { PolymarketService as PolymarketServiceClass } from "@elizaos/plugin-polymarket";
+
+const POLYMARKET_SERVICE_NAME = PolymarketServiceClass.serviceType;
+
+type PolymarketService = InstanceType<typeof PolymarketServiceClass>;
+
+type Market = {
+  condition_id: string;
+  question?: string;
+  active?: boolean;
+  closed?: boolean;
+  end_date_iso?: string;
+  tokens?: Array<{ token_id: string; outcome: string }>;
+};
+
+type MarketsResponse = {
+  data: Market[];
+  next_cursor?: string;
+};
 
 type ChatRole = "user" | "assistant" | "system";
 
@@ -1820,7 +1835,7 @@ Decide on your next action and execute it. You have access to all your tools and
         setMessages([]);
         return;
       }
-      void runtime.stop().finally(() => process.exit(0));
+      void Promise.race([runtime.stop(), new Promise<void>((r) => setTimeout(r, 3000))]).finally(() => process.exit(0));
       exit();
       return;
     }

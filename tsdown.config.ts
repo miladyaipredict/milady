@@ -70,4 +70,14 @@ export default [
     inlineOnly: false,
     external: nativeExternals,
   },
+  {
+    entry: "src/plugins/polymarket-actions/index.ts",
+    outDir: "dist/plugins/polymarket-actions",
+    env,
+    fixedExtension: false,
+    platform: "node",
+    unbundle: true,
+    inlineOnly: false,
+    external: nativeExternals,
+  },
 ];

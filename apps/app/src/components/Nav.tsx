@@ -13,6 +13,7 @@ const NAV_LABEL_I18N_KEY: Record<string, string> = {
   Character: "nav.character",
   Wallets: "nav.wallets",
   Polymarket: "nav.polymarket",
+  zERC20: "nav.zerc20",
   Knowledge: "nav.knowledge",
   Social: "nav.social",
   Apps: "nav.apps",

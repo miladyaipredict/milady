@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 1,
   "workspaces": {
     "": {
       "name": "miladyai",
@@ -486,10 +485,14 @@
       "dependencies": {
         "@clack/prompts": "^0.11.0",
         "@elizaos/core": "next",
+        "@elizaos/plugin-anthropic": "next",
         "@elizaos/plugin-evm": "next",
+        "@elizaos/plugin-google-genai": "next",
+        "@elizaos/plugin-groq": "next",
         "@elizaos/plugin-openai": "next",
         "@elizaos/plugin-polymarket": "next",
         "@elizaos/plugin-sql": "next",
+        "@elizaos/plugin-xai": "next",
         "@ethersproject/wallet": "^5.7.0",
         "@polymarket/clob-client": "^5.2.0",
         "@zenobius/ink-mouse": "1.0.4",

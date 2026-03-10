@@ -1,0 +1,80 @@
+{
+  "name": "@milady/plugin-zerc20",
+  "description": "zERC20 privacy-preserving token transfers plugin for Milady — wrap, unwrap, private send, and cross-chain teleport using zero-knowledge proofs (EIP-7503)",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "packageType": "plugin",
+  "platform": "node",
+  "license": "MIT",
+  "keywords": [
+    "elizaos",
+    "elizaos-plugin",
+    "zerc20",
+    "zk-proofs",
+    "privacy",
+    "eip-7503",
+    "erc20",
+    "cross-chain"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/milady-ai/milady.git",
+    "directory": "packages/plugin-zerc20"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "package.json"
+  ],
+  "dependencies": {
+    "@elizaos/core": "next",
+    "viem": "^2.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "bun run build.ts",
+    "test": "bun test"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "ZERC20_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Hex private key for the wallet used for zERC20 wrapping, unwrapping, and receiving. Falls back to the agent's default EVM key if not set.",
+        "required": false,
+        "sensitive": true
+      },
+      "ZERC20_SEED_HEX": {
+        "type": "string",
+        "description": "Stealth seed for deriving burn addresses and scanning incoming private transfers. If omitted, derived from the wallet private key.",
+        "required": false,
+        "sensitive": true
+      },
+      "ZERC20_INDEXER_URL": {
+        "type": "string",
+        "description": "URL of the zERC20 indexer service for querying transfer events and merkle proofs.",
+        "required": false,
+        "default": "https://indexer.zerc20.io"
+      },
+      "ZERC20_DECIDER_URL": {
+        "type": "string",
+        "description": "URL of the zERC20 decider prover service for generating Nova IVC proofs.",
+        "required": false,
+        "default": "https://prover.zerc20.io"
+      }
+    }
+  }
+}
