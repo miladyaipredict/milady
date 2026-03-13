@@ -26,6 +26,8 @@ export interface AvatarSelectorProps {
   showUpload?: boolean;
   /** Expand selector to fill row width with responsive tile sizes */
   fullWidth?: boolean;
+  /** Whether an avatar is currently loading (disables selection) */
+  loading?: boolean;
 }
 
 function isVrmFile(file: File): boolean {
@@ -61,6 +63,7 @@ export function AvatarSelector({
   onUpload,
   showUpload = true,
   fullWidth = false,
+  loading = false,
 }: AvatarSelectorProps) {
   const { t } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,15 +148,22 @@ export function AvatarSelector({
               selected === i
                 ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--card)] scale-105"
                 : "opacity-60 hover:opacity-100 hover:scale-105"
-            }`}
-            onClick={() => onSelect(i)}
+            } ${loading ? "cursor-wait pointer-events-none" : ""}`}
+            onClick={() => !loading && onSelect(i)}
+            disabled={loading}
             type="button"
           >
             <img
               src={getVrmPreviewUrl(i)}
               alt={getVrmTitle(i)}
-              className="w-full h-full object-cover"
+              draggable={false}
+              className={`w-full h-full object-cover select-none ${loading && selected !== i ? "opacity-40" : ""}`}
             />
+            {loading && selected === i && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
           </button>
         ))}
 

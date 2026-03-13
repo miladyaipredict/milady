@@ -37,26 +37,3 @@ export function applyClaudeCodeStealth(): void {
 
   installClaudeCodeStealthFetchInterceptor();
 }
-
-const OPENAI_STEALTH_GUARD = Symbol.for("milady.openaiCodexStealthInstalled");
-
-export async function applyOpenAICodexStealth(): Promise<void> {
-  // Prevent double-installation
-  if ((globalThis as Record<symbol, unknown>)[OPENAI_STEALTH_GUARD]) {
-    return;
-  }
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return;
-  // Standard API keys start with sk- and don't need stealth
-  if (apiKey.startsWith("sk-")) return;
-
-  // Locate the root-level openai-codex-stealth.mjs by walking up to the
-  // project root (works whether running from src/ or dist/).
-  const thisDir = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = findProjectRoot(thisDir);
-  const stealthPath = path.join(projectRoot, "openai-codex-stealth.mjs");
-
-  await import(stealthPath);
-  (globalThis as Record<symbol, unknown>)[OPENAI_STEALTH_GUARD] = true;
-}

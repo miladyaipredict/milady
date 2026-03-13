@@ -62,10 +62,10 @@ export function ConversationListItem({
       key={conv.id}
       data-testid="conv-item"
       data-active={isActive || undefined}
-      className={`${
+      className={`w-full ${
         isGameModal
           ? "group relative flex items-center gap-3 w-full p-2.5 rounded-xl cursor-pointer transition-all border border-transparent"
-          : "flex items-center px-3 py-2 gap-2 cursor-pointer transition-colors border-l-[3px]"
+          : "flex items-center pl-3 pr-2 py-2 gap-1 cursor-pointer transition-colors border-l-[3px]"
       } ${
         isActive
           ? isGameModal
@@ -109,32 +109,15 @@ export function ConversationListItem({
               />
             )}
 
-            <div
+            <span
               className={
                 isGameModal
-                  ? "flex-1 min-w-0 flex flex-col gap-1 w-full"
-                  : "flex-1 min-w-0"
+                  ? `text-[13px] font-medium truncate leading-tight transition-colors min-w-0 ${isActive ? "text-accent text-shadow-glow" : "text-white/90 group-hover:text-white"}`
+                  : "font-medium truncate text-txt min-w-0"
               }
             >
-              <span
-                className={
-                  isGameModal
-                    ? `text-[13px] font-medium truncate leading-tight transition-colors ${isActive ? "text-accent text-shadow-glow" : "text-white/90 group-hover:text-white"}`
-                    : "font-medium truncate text-txt"
-                }
-              >
-                {getLocalizedConversationTitle(conv.title, t)}
-              </span>
-              <span
-                className={
-                  isGameModal
-                    ? "text-[11px] text-white/40 truncate"
-                    : "text-[11px] text-muted mt-0.5"
-                }
-              >
-                {formatRelativeTime(conv.updatedAt, t)}
-              </span>
-            </div>
+              {getLocalizedConversationTitle(conv.title, t)}
+            </span>
           </Button>
 
           {/* Rename button (game-modal always visible, default on hover) */}
@@ -209,6 +192,16 @@ export function ConversationListItem({
               {t("conversationlistitem.Times")}
             </Button>
           )}
+          {/* Time at absolute right of row */}
+          <span
+            className={
+              isGameModal
+                ? "text-[11px] text-white/40 shrink-0"
+                : "text-[11px] text-muted shrink-0"
+            }
+          >
+            {formatRelativeTime(conv.updatedAt, t)}
+          </span>
         </>
       )}
     </div>

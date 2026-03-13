@@ -130,12 +130,34 @@ describe("character routes", () => {
     expect(pickRandomNames).toHaveBeenCalledWith(1);
   });
 
-  test("generates character content with model", async () => {
+  test("generates character content with model (bio)", async () => {
     const result = await invoke({
       method: "POST",
       pathname: "/api/character/generate",
       body: {
         field: "bio",
+        context: {
+          name: "Milady",
+          system: "agent system",
+          bio: "bio text",
+        },
+      },
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.payload).toMatchObject({ generated: "generated output" });
+    expect(
+      (state.runtime as unknown as { useModel: ReturnType<typeof vi.fn> })
+        .useModel,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  test("generates character content with model (system)", async () => {
+    const result = await invoke({
+      method: "POST",
+      pathname: "/api/character/generate",
+      body: {
+        field: "system",
         context: {
           name: "Milady",
           system: "agent system",

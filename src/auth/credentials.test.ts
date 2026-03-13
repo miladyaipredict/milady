@@ -9,7 +9,6 @@ vi.mock("./openai-codex", () => ({
 }));
 vi.mock("./apply-stealth", () => ({
   applyClaudeCodeStealth: vi.fn(),
-  applyOpenAICodexStealth: vi.fn(async () => undefined),
 }));
 
 // Mock fs to simulate credential files.
@@ -160,34 +159,5 @@ describe("applySubscriptionCredentials", () => {
 
     expect(process.env.ANTHROPIC_API_KEY).toBe("sk-ant-oat01-test-token");
     expect(applyClaudeCodeStealth).toHaveBeenCalledTimes(1);
-  });
-
-  test("calls applyOpenAICodexStealth when OpenAI token is applied", async () => {
-    const authDir = require("node:path").join(
-      require("node:os").homedir(),
-      ".milady",
-      "auth",
-    );
-    const credPath = require("node:path").join(authDir, "openai-codex.json");
-    mockCredentials[credPath] = JSON.stringify({
-      provider: "openai-codex",
-      credentials: {
-        access: "eyJhbGciOiJSUzI1NiJ9.eyJ0ZXN0IjoxfQ.sig",
-        refresh: "refresh-token",
-        expires: Date.now() + 60 * 60 * 1000,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    const { applySubscriptionCredentials } = await import("./credentials");
-    const { applyOpenAICodexStealth } = await import("./apply-stealth");
-
-    await applySubscriptionCredentials();
-
-    expect(process.env.OPENAI_API_KEY).toBe(
-      "eyJhbGciOiJSUzI1NiJ9.eyJ0ZXN0IjoxfQ.sig",
-    );
-    expect(applyOpenAICodexStealth).toHaveBeenCalledTimes(1);
   });
 });

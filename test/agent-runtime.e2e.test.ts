@@ -263,7 +263,8 @@ async function postChatWithRetries(
         return response;
       }
       errors.push(
-        `attempt ${attempt}: status=${response.status}, textType=${typeof text}, textLength=${typeof text === "string" ? text.length : 0
+        `attempt ${attempt}: status=${response.status}, textType=${typeof text}, textLength=${
+          typeof text === "string" ? text.length : 0
         }`,
       );
     } catch (err) {
@@ -305,7 +306,8 @@ async function postChatPromptWithRetries(
         return response;
       }
       errors.push(
-        `attempt ${attempt}: status=${response.status}, textType=${typeof text}, textLength=${typeof text === "string" ? text.length : 0
+        `attempt ${attempt}: status=${response.status}, textType=${typeof text}, textLength=${
+          typeof text === "string" ? text.length : 0
         }`,
       );
     } catch (err) {

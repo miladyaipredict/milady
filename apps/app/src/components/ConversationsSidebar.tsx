@@ -148,8 +148,8 @@ export function ConversationsSidebar({
       <div
         className={
           isGameModal
-            ? "flex-1 overflow-y-auto p-2 space-y-1 min-h-0 custom-scrollbar"
-            : "flex-1 overflow-y-auto py-1"
+            ? "flex-1 overflow-y-auto p-2 space-y-1 min-h-0 custom-scrollbar w-full"
+            : "flex-1 overflow-y-auto py-1 w-full min-w-0"
         }
       >
         {sortedConversations.length === 0 ? (

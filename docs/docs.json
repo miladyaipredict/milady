@@ -41,11 +41,7 @@
           },
           {
             "group": "Configuration",
-            "pages": [
-              "configuration",
-              "config-schema",
-              "model-providers"
-            ]
+            "pages": ["configuration", "config-schema", "model-providers"]
           },
           {
             "group": "Guides",
@@ -84,17 +80,11 @@
           },
           {
             "group": "Infrastructure",
-            "pages": [
-              "deployment",
-              "self-updates",
-              "guides/cloud"
-            ]
+            "pages": ["deployment", "self-updates", "guides/cloud"]
           },
           {
             "group": "Contributing",
-            "pages": [
-              "guides/contribution-guide"
-            ]
+            "pages": ["guides/contribution-guide"]
           }
         ]
       },
@@ -103,22 +93,15 @@
         "groups": [
           {
             "group": "Overview",
-            "pages": [
-              "apps/dashboard",
-              "dashboard/pairing"
-            ]
+            "pages": ["apps/dashboard", "dashboard/pairing"]
           },
           {
             "group": "Chat",
-            "pages": [
-              "dashboard/chat"
-            ]
+            "pages": ["dashboard/chat"]
           },
           {
             "group": "Stream",
-            "pages": [
-              "dashboard/stream"
-            ]
+            "pages": ["dashboard/stream"]
           },
           {
             "group": "Character",
@@ -130,15 +113,11 @@
           },
           {
             "group": "Wallets",
-            "pages": [
-              "guides/wallet"
-            ]
+            "pages": ["guides/wallet"]
           },
           {
             "group": "Knowledge",
-            "pages": [
-              "guides/knowledge"
-            ]
+            "pages": ["guides/knowledge"]
           },
           {
             "group": "Social",
@@ -153,16 +132,11 @@
           },
           {
             "group": "Apps",
-            "pages": [
-              "dashboard/apps"
-            ]
+            "pages": ["dashboard/apps"]
           },
           {
             "group": "Settings",
-            "pages": [
-              "apps/dashboard/settings",
-              "apps/dashboard/talk-mode"
-            ]
+            "pages": ["apps/dashboard/settings", "apps/dashboard/talk-mode"]
           }
         ]
       },
@@ -189,33 +163,23 @@
           },
           {
             "group": "Skills",
-            "pages": [
-              "plugins/skills"
-            ]
+            "pages": ["plugins/skills"]
           },
           {
             "group": "Actions",
-            "pages": [
-              "guides/custom-actions"
-            ]
+            "pages": ["guides/custom-actions"]
           },
           {
             "group": "Triggers",
-            "pages": [
-              "guides/triggers"
-            ]
+            "pages": ["guides/triggers"]
           },
           {
             "group": "Fine-Tuning",
-            "pages": [
-              "guides/training"
-            ]
+            "pages": ["guides/training"]
           },
           {
             "group": "Trajectories",
-            "pages": [
-              "advanced/trajectories"
-            ]
+            "pages": ["advanced/trajectories"]
           },
           {
             "group": "Runtime",
@@ -226,21 +190,15 @@
           },
           {
             "group": "Database",
-            "pages": [
-              "advanced/database"
-            ]
+            "pages": ["advanced/database"]
           },
           {
             "group": "Logs",
-            "pages": [
-              "advanced/logs"
-            ]
+            "pages": ["advanced/logs"]
           },
           {
             "group": "Security",
-            "pages": [
-              "guides/sandbox"
-            ]
+            "pages": ["guides/sandbox"]
           }
         ]
       },
@@ -287,10 +245,7 @@
           },
           {
             "group": "DeFi & Blockchain",
-            "pages": [
-              "plugin-registry/defi/evm",
-              "plugin-registry/defi/solana"
-            ]
+            "pages": ["plugin-registry/defi/evm", "plugin-registry/defi/solana"]
           },
           {
             "group": "Feature Plugins",
@@ -353,9 +308,7 @@
           },
           {
             "group": "WebSocket",
-            "pages": [
-              "websocket-events"
-            ]
+            "pages": ["websocket-events"]
           },
           {
             "group": "Runtime Reference",
@@ -376,9 +329,7 @@
         "groups": [
           {
             "group": "Overview",
-            "pages": [
-              "cli/overview"
-            ]
+            "pages": ["cli/overview"]
           },
           {
             "group": "Commands",
@@ -397,9 +348,7 @@
           },
           {
             "group": "Environment",
-            "pages": [
-              "cli/environment"
-            ]
+            "pages": ["cli/environment"]
           }
         ]
       }
@@ -413,12 +362,6 @@
     }
   },
   "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity"
-    ]
+    "options": ["copy", "view", "chatgpt", "claude", "perplexity"]
   }
 }

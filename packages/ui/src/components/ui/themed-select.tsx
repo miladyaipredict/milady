@@ -62,7 +62,10 @@ export function ThemedSelect<T extends string>({
   }
 
   return (
-    <div ref={ref} className="relative flex-1 min-w-0">
+    <div
+      ref={ref}
+      className={`relative flex-1 min-w-0 ${open ? "z-[100]" : ""}`}
+    >
       <Button
         type="button"
         variant="outline"

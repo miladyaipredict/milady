@@ -199,15 +199,6 @@ export async function applySubscriptionCredentials(config?: {
     logger.info(
       "[auth] Applied OpenAI Codex subscription credentials to environment",
     );
-    // Install OpenAI Codex stealth interceptor (non-fatal)
-    try {
-      const { applyOpenAICodexStealth } = await import("./apply-stealth");
-      await applyOpenAICodexStealth();
-    } catch (err) {
-      logger.warn(
-        `[auth] Failed to apply OpenAI Codex stealth: ${err instanceof Error ? err.message : err}`,
-      );
-    }
   }
 
   // Auto-set model.primary from subscription provider when not explicitly

@@ -262,6 +262,9 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
   /* ── Character generation state ─────────────────────────────────── */
   const [generating, setGenerating] = useState<string | null>(null);
 
+  /* ── Avatar loading state ───────────────────────────────────────── */
+  const [avatarLoading, setAvatarLoading] = useState(false);
+
   /* ── Voice config state ─────────────────────────────────────────── */
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({});
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -412,6 +415,8 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
         );
         if (field === "bio") {
           handleFieldEdit("bio", generated.trim());
+        } else if (field === "system") {
+          handleFieldEdit("system", generated.trim());
         } else if (field === "style") {
           try {
             const parsed = JSON.parse(generated);
@@ -546,7 +551,7 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="btn text-xs py-[5px] px-4 !mt-0"
+                  className="btn text-xs py-[5px] px-4 !mt-0 cursor-pointer"
                   disabled={registryRegistering || registryLoading}
                   onClick={() => void registerOnChain()}
                 >
@@ -693,8 +698,18 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
             <div className="w-full">
               <AvatarSelector
                 selected={selectedVrmIndex}
-                onSelect={(i) => setState("selectedVrmIndex", i)}
+                loading={avatarLoading}
+                onSelect={(i) => {
+                  if (avatarLoading) return;
+                  setAvatarLoading(true);
+                  setState("selectedVrmIndex", i);
+                  // TODO(PR-928): This timeout is a known approximation. Should hook into actual VRM load complete event.
+                  // Allow time for VRM to load before enabling selection again
+                  setTimeout(() => setAvatarLoading(false), 1500);
+                }}
                 onUpload={(file) => {
+                  if (avatarLoading) return;
+                  setAvatarLoading(true);
                   const previousIndex = selectedVrmIndex;
                   const url = URL.createObjectURL(file);
                   setState("customVrmUrl", url);
@@ -711,6 +726,10 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
                     .catch(() => {
                       setState("selectedVrmIndex", previousIndex);
                       URL.revokeObjectURL(url);
+                    })
+                    .finally(() => {
+                      // TODO(PR-928): This timeout is a known approximation. Should hook into actual VRM load complete event.
+                      setTimeout(() => setAvatarLoading(false), 1500);
                     });
                 }}
                 showUpload
@@ -1002,15 +1021,15 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
                   handleFieldEdit("postExamples", updated);
                 }}
               >
-                + {t("characterview.AddPost")}
+                {t("characterview.AddPost")}
               </Button>
             </div>
           </details>
         </div>
       </div>
 
-      {/* ═══ SECTION 4: VOICE ═══ */}
-      <div className={sectionCls}>
+      {/* ═══ SECTION 4: VOICE ═══ — relative z-20 so dropdown stacks above save bar */}
+      <div className={`${sectionCls} relative z-20`}>
         <div className="font-bold text-sm mb-4 border-b border-border/40 pb-3 text-txt tracking-wide">
           {t("characterview.Voice")}
         </div>
@@ -1248,8 +1267,8 @@ export function CharacterView({ inModal }: { inModal?: boolean } = {}) {
         )}
       </div>
 
-      {/* ═══ SAVE BAR ═══ */}
-      <div className={sectionCls}>
+      {/* ═══ SAVE BAR ═══ — z-10 so voice dropdown can draw above */}
+      <div className={`${sectionCls} relative z-10`}>
         <div className="flex items-center justify-end gap-4">
           {characterSaveSuccess && (
             <span className="text-xs text-green-400 font-bold bg-green-400/10 px-3 py-1.5 rounded-lg border border-green-400/20">
