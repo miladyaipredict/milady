@@ -752,6 +752,7 @@ const OPTIONAL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   "twitch-streaming": "@elizaos/plugin-twitch-streaming",
   "youtube-streaming": "@elizaos/plugin-youtube-streaming",
   "custom-rtmp": "@milady/plugin-custom-rtmp",
+  polymarket: "@milady/plugin-polymarket",
   "pumpfun-streaming": "@elizaos/plugin-pumpfun-streaming",
   "x-streaming": "@elizaos/plugin-x-streaming",
 };
@@ -1075,6 +1076,15 @@ export function collectPluginNames(config: MiladyConfig): Set<string> {
     pluginsToLoad.add("@milady/plugin-opinion");
   }
 
+  // Polymarket plugin — auto-load when private key or CLOB credentials present.
+  // Feature plugin for prediction market trading on Polygon via Polymarket CLOB.
+  if (
+    process.env.POLYMARKET_PRIVATE_KEY?.trim() ||
+    process.env.CLOB_API_KEY?.trim()
+  ) {
+    pluginsToLoad.add("@milady/plugin-polymarket");
+  }
+
   // User-installed plugins from config.plugins.installs
   // These are plugins that were installed via the plugin-manager at runtime
   // and tracked in milady.json so they persist across restarts.
@@ -1254,9 +1264,16 @@ export function resolveMiladyPluginImportSpecifier(
   const distRoot = thisDir.endsWith("runtime")
     ? path.resolve(thisDir, "..")
     : thisDir;
-  const indexPath = path.resolve(distRoot, "plugins", shortName, "index.js");
+  const pluginDir = path.resolve(distRoot, "plugins", shortName);
+  const indexJs = path.resolve(pluginDir, "index.js");
+  const indexMjs = path.resolve(pluginDir, "index.mjs");
+  const indexPath = existsSync(indexJs)
+    ? indexJs
+    : existsSync(indexMjs)
+      ? indexMjs
+      : null;
 
-  return existsSync(indexPath) ? pathToFileURL(indexPath).href : pluginName;
+  return indexPath ? pathToFileURL(indexPath).href : pluginName;
 }
 
 export function shouldIgnoreMissingPluginExport(pluginName: string): boolean {
