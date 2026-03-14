@@ -8153,6 +8153,9 @@ async function handleRequest(
         body.config,
       );
       if (configRejections.length > 0) {
+        logger.error(
+          `[milady-api] PUT /api/plugins/${pluginId} config rejected (mutation check): ${JSON.stringify(configRejections)}. Submitted keys: ${Object.keys(body.config).join(", ")}. Allowed keys: ${plugin.parameters.map((p: { key: string }) => p.key).join(", ")}`,
+        );
         json(
           res,
           { ok: false, plugin, validationErrors: configRejections },
@@ -8186,6 +8189,9 @@ async function handleRequest(
       );
 
       if (!configValidation.valid) {
+        logger.error(
+          `[milady-api] PUT /api/plugins/${pluginId} config rejected (validation): ${JSON.stringify(configValidation.errors)}. Submitted keys: ${Object.keys(body.config).join(", ")}`,
+        );
         json(
           res,
           { ok: false, plugin, validationErrors: configValidation.errors },
