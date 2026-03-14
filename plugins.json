@@ -30,7 +30,9 @@
         "ACP_AGENT_ID"
       ],
       "version": "2.0.0-alpha.4",
-      "pluginDeps": ["cli"],
+      "pluginDeps": [
+        "cli"
+      ],
       "pluginParameters": {
         "ACP_GATEWAY_URL": {
           "type": "string",
@@ -139,7 +141,9 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["ORCHESTRATOR_ACTIVE_PROVIDER"],
+      "configKeys": [
+        "ORCHESTRATOR_ACTIVE_PROVIDER"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "ORCHESTRATOR_ACTIVE_PROVIDER": {
@@ -283,7 +287,9 @@
         "ZEROEX_API_KEY"
       ],
       "version": "2.0.0-alpha.4",
-      "pluginDeps": ["solana"],
+      "pluginDeps": [
+        "solana"
+      ],
       "pluginParameters": {
         "BIRDEYE_API_KEY": {
           "type": "string",
@@ -907,7 +913,9 @@
         "CAPSOLVER_API_KEY"
       ],
       "version": "2.0.0-alpha.6",
-      "pluginDeps": ["cli"],
+      "pluginDeps": [
+        "cli"
+      ],
       "pluginParameters": {
         "BROWSERBASE_API_KEY": {
           "type": "string",
@@ -946,7 +954,7 @@
       "dirName": "app-clawbal",
       "name": "Clawbal Chat",
       "npmName": "@iqlabs-official/plugin-clawbal",
-      "description": "On-chain AI chatrooms on Solana — agents chat, trade, launch tokens, and compete on PnL leaderboards",
+      "description": "On-chain AI chatrooms on Solana \u2014 agents chat, trade, launch tokens, and compete on PnL leaderboards",
       "category": "app",
       "envKey": "SOLANA_PRIVATE_KEY",
       "configKeys": [
@@ -1010,7 +1018,10 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["CLI_NAME", "CLI_VERSION"],
+      "configKeys": [
+        "CLI_NAME",
+        "CLI_VERSION"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "CLI_NAME": {
@@ -1042,7 +1053,9 @@
         "CODER_FORBIDDEN_COMMANDS"
       ],
       "version": "2.0.0-alpha.5",
-      "pluginDeps": ["shell"],
+      "pluginDeps": [
+        "shell"
+      ],
       "pluginParameters": {
         "CODER_ENABLED": {
           "type": "boolean",
@@ -1248,7 +1261,9 @@
       "envKey": null,
       "configKeys": [],
       "version": "2.0.0-alpha.4",
-      "pluginDeps": ["cli"]
+      "pluginDeps": [
+        "cli"
+      ]
     },
     {
       "id": "custom-rtmp",
@@ -1258,7 +1273,10 @@
       "description": "Stream to any RTMP destination with a custom URL and key",
       "category": "streaming",
       "envKey": "CUSTOM_RTMP_URL",
-      "configKeys": ["CUSTOM_RTMP_URL", "CUSTOM_RTMP_KEY"],
+      "configKeys": [
+        "CUSTOM_RTMP_URL",
+        "CUSTOM_RTMP_KEY"
+      ],
       "pluginParameters": {
         "CUSTOM_RTMP_URL": {
           "type": "string",
@@ -1916,7 +1934,9 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["AUTO_RECORD_THRESHOLD"],
+      "configKeys": [
+        "AUTO_RECORD_THRESHOLD"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "AUTO_RECORD_THRESHOLD": {
@@ -3179,7 +3199,12 @@
         "LP_EVM_DEXES"
       ],
       "version": "2.0.0-alpha.4",
-      "pluginDeps": ["anthropic", "discord", "telegram", "evm"],
+      "pluginDeps": [
+        "anthropic",
+        "discord",
+        "telegram",
+        "evm"
+      ],
       "pluginParameters": {
         "SOLANA_RPC_URL": {
           "type": "string",
@@ -3437,7 +3462,10 @@
       "description": "ElizaOS plugin allowing agents to connect to MCP servers",
       "category": "connector",
       "envKey": null,
-      "configKeys": ["PATH", "mcp"],
+      "configKeys": [
+        "PATH",
+        "mcp"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "PATH": {
@@ -3668,7 +3696,7 @@
       "dirName": "plugin-mysticism",
       "name": "Mysticism",
       "npmName": "@elizaos/plugin-mysticism",
-      "description": "Mystical divination engines for ElizaOS — Tarot, I Ching, and Astrology readings",
+      "description": "Mystical divination engines for ElizaOS \u2014 Tarot, I Ching, and Astrology readings",
       "category": "feature",
       "envKey": null,
       "configKeys": [
@@ -3677,7 +3705,9 @@
         "MYSTICISM_PRICE_ASTROLOGY"
       ],
       "version": "2.0.0-alpha.1",
-      "pluginDeps": ["form"],
+      "pluginDeps": [
+        "form"
+      ],
       "pluginParameters": {
         "MYSTICISM_PRICE_TAROT": {
           "type": "number",
@@ -4256,7 +4286,9 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["ADMIN_USERS"],
+      "configKeys": [
+        "ADMIN_USERS"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "ADMIN_USERS": {
@@ -4299,7 +4331,10 @@
         "POLYMARKET_ALLOW_CREATE_API_KEY",
         "POLYMARKET_MAX_POSITION_PCT",
         "POLYMARKET_MAX_SPREAD_PCT",
-        "POLYMARKET_MAX_TRADE_SIZE_USD"
+        "POLYMARKET_MAX_TRADE_SIZE_USD",
+        "POLYMARKET_PROVIDER_STRICT",
+        "POLYMARKET_PROVIDER_CACHE_TTL_MS",
+        "OPENAI_API_KEY"
       ],
       "version": "2.0.0",
       "pluginDeps": [],
@@ -4388,6 +4423,26 @@
           "required": false,
           "default": "100",
           "sensitive": false
+        },
+        "POLYMARKET_PROVIDER_STRICT": {
+          "type": "string",
+          "description": "Strict mode for provider - fail if credentials missing (default: true).",
+          "required": false,
+          "default": "true",
+          "sensitive": false
+        },
+        "POLYMARKET_PROVIDER_CACHE_TTL_MS": {
+          "type": "string",
+          "description": "Provider cache TTL in milliseconds (default: 300000).",
+          "required": false,
+          "default": "300000",
+          "sensitive": false
+        },
+        "OPENAI_API_KEY": {
+          "type": "string",
+          "description": "OpenAI API key for deep research features (optional).",
+          "required": false,
+          "sensitive": true
         }
       }
     },
@@ -4696,7 +4751,9 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["DEFAULT_TIMEZONE"],
+      "configKeys": [
+        "DEFAULT_TIMEZONE"
+      ],
       "version": "2.0.0-alpha.6",
       "pluginParameters": {
         "DEFAULT_TIMEZONE": {
@@ -4715,7 +4772,10 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["SCRATCHPAD_BASE_PATH", "SCRATCHPAD_MAX_FILE_SIZE"],
+      "configKeys": [
+        "SCRATCHPAD_BASE_PATH",
+        "SCRATCHPAD_MAX_FILE_SIZE"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "SCRATCHPAD_BASE_PATH": {
@@ -5117,7 +5177,7 @@
       "dirName": "plugin-streaming-base",
       "name": "Streaming",
       "npmName": "@milady/plugin-streaming-base",
-      "description": "Enable live streaming controls — adds the Stream tab for managing RTMP destinations",
+      "description": "Enable live streaming controls \u2014 adds the Stream tab for managing RTMP destinations",
       "category": "streaming",
       "envKey": null,
       "configKeys": [],
@@ -5133,7 +5193,11 @@
       "description": "A plugin for secure key derivation and remote attestation within Trusted Execution Environments (TEE).",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["TEE_MODE", "TEE_VENDOR", "WALLET_SECRET_SALT"],
+      "configKeys": [
+        "TEE_MODE",
+        "TEE_VENDOR",
+        "WALLET_SECRET_SALT"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "TEE_MODE": {
@@ -5273,7 +5337,10 @@
       "description": "A todo list. For humans and agents.",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["ENABLE_REMINDERS", "REMINDER_INTERVAL_MS"],
+      "configKeys": [
+        "ENABLE_REMINDERS",
+        "REMINDER_INTERVAL_MS"
+      ],
       "version": "2.0.0-alpha.4",
       "pluginParameters": {
         "ENABLE_REMINDERS": {
@@ -5311,9 +5378,14 @@
       "description": "Primitives for agents to trust humans and each other",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["OWNER_ENTITY_ID", "WORLD_ID"],
+      "configKeys": [
+        "OWNER_ENTITY_ID",
+        "WORLD_ID"
+      ],
       "version": "2.0.0-alpha.4",
-      "pluginDeps": ["anthropic"],
+      "pluginDeps": [
+        "anthropic"
+      ],
       "pluginParameters": {
         "OWNER_ENTITY_ID": {
           "type": "string",
@@ -5603,7 +5675,9 @@
       "description": "Twitch RTMP streaming destination for live broadcasts",
       "category": "streaming",
       "envKey": "TWITCH_STREAM_KEY",
-      "configKeys": ["TWITCH_STREAM_KEY"],
+      "configKeys": [
+        "TWITCH_STREAM_KEY"
+      ],
       "pluginParameters": {
         "TWITCH_STREAM_KEY": {
           "type": "string",
@@ -5912,7 +5986,10 @@
       "description": "",
       "category": "feature",
       "envKey": null,
-      "configKeys": ["CAMERA_NAME", "PIXEL_CHANGE_THRESHOLD"],
+      "configKeys": [
+        "CAMERA_NAME",
+        "PIXEL_CHANGE_THRESHOLD"
+      ],
       "version": "2.0.0-alpha.5",
       "pluginParameters": {
         "CAMERA_NAME": {
@@ -6294,7 +6371,10 @@
       "description": "YouTube RTMP streaming destination for live broadcasts",
       "category": "streaming",
       "envKey": "YOUTUBE_STREAM_KEY",
-      "configKeys": ["YOUTUBE_STREAM_KEY", "YOUTUBE_RTMP_URL"],
+      "configKeys": [
+        "YOUTUBE_STREAM_KEY",
+        "YOUTUBE_RTMP_URL"
+      ],
       "pluginParameters": {
         "YOUTUBE_STREAM_KEY": {
           "type": "string",
