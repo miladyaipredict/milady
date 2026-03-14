@@ -149,7 +149,7 @@ jobs:
     name: Build ${{ matrix.platform.name }}
     needs: [prepare, validate-release]
     runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: 75
+    timeout-minutes: 150
     defaults:
       run:
         shell: bash -euo pipefail {0}
@@ -214,6 +214,14 @@ jobs:
       - name: Ensure avatar assets
         run: node scripts/ensure-avatars.mjs
 
+      - name: Cache Whisper models
+        if: matrix.platform.os == 'macos' || matrix.platform.os == 'linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/milady/whisper
+          key: whisper-model-${{ matrix.platform.artifact-name }}-${{ hashFiles('apps/app/electrobun/scripts/build-whisper.sh', 'apps/app/electrobun/scripts/build-whisper-universal.sh') }}
+          restore-keys: whisper-model-${{ matrix.platform.artifact-name }}-
+
       - name: Align version with release tag
         run: |
           node -e "
@@ -257,14 +265,12 @@ jobs:
           fi
 
       - name: Build renderer (vite)
-        # vite output is arch-neutral JS/CSS/HTML, but bun install here may pull
-        # native optional deps, so keep the Intel build on an explicit x64 path.
+        # vite output is arch-neutral JS/CSS/HTML; rely on the root workspace install
+        # above rather than repeating bun install in apps/app for every release job.
         run: |
           if [ "${{ matrix.platform.os }}" = "macos" ] && [ "${{ matrix.platform.artifact-name }}" = "macos-x64" ]; then
-            arch -x86_64 bun install --ignore-scripts
             arch -x86_64 bunx vite build
           else
-            bun install --ignore-scripts
             bunx vite build
           fi
         working-directory: apps/app
@@ -292,7 +298,7 @@ jobs:
           fi
         working-directory: apps/app/electrobun
 
-      # Build the webview bridge preload (window.electron shim injected into the webview)
+      # Build the webview bridge preload (direct Electrobun RPC bridge injected into the webview)
       - name: Build webview bridge preload
         run: bun run build:preload
         working-directory: apps/app/electrobun
@@ -405,11 +411,32 @@ jobs:
         run: |
           ELECTROBUN_VERSION="$(node -p "require('./apps/app/electrobun/package.json').dependencies.electrobun.replace(/^[^0-9]*/, '')")"
           echo "Installing electrobun@$ELECTROBUN_VERSION"
+          echo "ELECTROBUN_VERSION=$ELECTROBUN_VERSION" >> "$GITHUB_ENV"
           if [ "${{ matrix.platform.os }}" = "macos" ] && [ "${{ matrix.platform.artifact-name }}" = "macos-x64" ]; then
             arch -x86_64 bun install -g "electrobun@$ELECTROBUN_VERSION"
           else
             bun install -g "electrobun@$ELECTROBUN_VERSION"
           fi
+
+      - name: Materialize local electrobun package for build
+        run: |
+          node -e "
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const src = fs.realpathSync('node_modules/electrobun');
+            const dest = path.resolve('apps/app/electrobun/node_modules/electrobun');
+            fs.rmSync(dest, { recursive: true, force: true });
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.cpSync(src, dest, { recursive: true });
+            console.log('Materialized local electrobun package:', dest, '<-', src);
+          "
+
+      - name: Cache local electrobun core downloads
+        uses: actions/cache@v4
+        with:
+          path: apps/app/electrobun/node_modules/electrobun/.cache
+          key: electrobun-core-${{ matrix.platform.artifact-name }}-${{ hashFiles('apps/app/electrobun/package.json') }}
+          restore-keys: electrobun-core-${{ matrix.platform.artifact-name }}-
 
       - name: Ensure Windows rcedit binary is available for Electrobun
         if: matrix.platform.os == 'windows'
@@ -654,15 +681,11 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "MILADY_TEST_WINDOWS_LAUNCHER_PATH=$launcherPath"
           Write-Host "Reusing packaged Windows launcher for Playwright: $launcherPath"
 
-      - name: Install Playwright Chromium (Windows)
-        if: matrix.platform.os == 'windows'
-        run: bunx playwright install chromium --with-deps
-
-      - name: Run Windows UI Playwright Tests
+      - name: Run Windows packaged renderer bootstrap check
         if: matrix.platform.os == 'windows'
         run: |
           cd apps/app
-          bunx playwright test --config playwright.electron.packaged.config.ts test/electron-packaged/electrobun-windows-startup.e2e.spec.ts
+          bunx playwright test --config playwright.electrobun.packaged.config.ts test/electrobun-packaged/electrobun-windows-startup.e2e.spec.ts
 
       - name: Upload Windows Playwright UI diagnostics
         if: failure() && matrix.platform.os == 'windows'
@@ -696,6 +719,7 @@ jobs:
           WINDOWS_SIGN_CERT_BASE64: ${{ secrets.WINDOWS_SIGN_CERT_BASE64 }}
           WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
           WINDOWS_SIGN_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGN_TIMESTAMP_URL }}
+        shell: pwsh
         run: pwsh -File apps/app/electrobun/scripts/sign-windows.ps1 -ArtifactsDir (Join-Path $PWD "apps/app/electrobun/artifacts") -BuildDir (Join-Path $PWD "apps/app/electrobun/build")
 
       - name: Verify Windows code signature

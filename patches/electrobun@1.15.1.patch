@@ -1,3 +1,6 @@
+diff --git a/node_modules/electrobun/.bun-tag-1d62bb023bbf58fd b/.bun-tag-1d62bb023bbf58fd
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/api/bun/core/Updater.ts b/dist/api/bun/core/Updater.ts
 index c747d1f91d7ad2451c5a9c1cf16ba7720da48e03..f4df82b3572367bae109cb1bccfe89098d3ce67d 100644
 --- a/dist/api/bun/core/Updater.ts
@@ -38,3 +41,49 @@ index c747d1f91d7ad2451c5a9c1cf16ba7720da48e03..f4df82b3572367bae109cb1bccfe8909
  						}
  
  						// Move new app bundle directory to app location
+diff --git a/src/cli/index.ts b/src/cli/index.ts
+index ea045de3984ad44c38aa66f4adaa236ee21a65a5..f15d1c51970959a2160b12e9843e524597773642 100644
+--- a/src/cli/index.ts
++++ b/src/cli/index.ts
+@@ -184,14 +184,18 @@ async function ensureCoreDependencies(
+ 
+ 	// Get the current Electrobun version from package.json
+ 	const packageJsonPath = join(ELECTROBUN_DEP_PATH, "package.json");
+-	let version = "latest";
++	let version = process.env.ELECTROBUN_VERSION
++		? process.env.ELECTROBUN_VERSION.startsWith("v")
++			? process.env.ELECTROBUN_VERSION
++			: `v${process.env.ELECTROBUN_VERSION}`
++		: "latest";
+ 
+ 	if (existsSync(packageJsonPath)) {
+ 		try {
+ 			const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+ 			version = `v${packageJson.version}`;
+ 		} catch (error) {
+-			console.warn("Could not read package version, using latest");
++			console.warn("Could not read package version, using fallback or latest");
+ 		}
+ 	}
+ 
+@@ -737,14 +741,18 @@ async function ensureCEFDependencies(
+ 
+ 	// Get the current Electrobun version from package.json
+ 	const packageJsonPath = join(ELECTROBUN_DEP_PATH, "package.json");
+-	let version = "latest";
++	let version = process.env.ELECTROBUN_VERSION
++		? process.env.ELECTROBUN_VERSION.startsWith("v")
++			? process.env.ELECTROBUN_VERSION
++			: `v${process.env.ELECTROBUN_VERSION}`
++		: "latest";
+ 
+ 	if (existsSync(packageJsonPath)) {
+ 		try {
+ 			const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+ 			version = `v${packageJson.version}`;
+ 		} catch (error) {
+-			console.warn("Could not read package version, using latest");
++			console.warn("Could not read package version, using fallback or latest");
+ 		}
+ 	}
+ 
