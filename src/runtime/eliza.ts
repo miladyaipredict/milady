@@ -108,7 +108,10 @@ import { diagnoseNoAIProvider } from "../services/version-compat";
 import { CORE_PLUGINS, OPTIONAL_CORE_PLUGINS } from "./core-plugins";
 import { detectEmbeddingPreset } from "./embedding-presets";
 import { createMiladyPlugin } from "./milady-plugin";
-import { installDatabaseTrajectoryLogger } from "./trajectory-persistence";
+import {
+  installDatabaseTrajectoryLogger,
+  shouldEnableTrajectoryLoggingByDefault,
+} from "./trajectory-persistence";
 
 /**
  * Map of baseline bundled @elizaos plugin names to their statically imported
@@ -544,10 +547,16 @@ function ensureTrajectoryLoggerEnabled(
   const isEnabled =
     typeof trajectoryLogger.isEnabled === "function"
       ? trajectoryLogger.isEnabled()
-      : true;
-  if (!isEnabled && typeof trajectoryLogger.setEnabled === "function") {
-    trajectoryLogger.setEnabled(true);
-    logger.info("[milady] trajectory_logger enabled by default");
+      : shouldEnableTrajectoryLoggingByDefault();
+  const shouldEnable = shouldEnableTrajectoryLoggingByDefault();
+  if (
+    isEnabled !== shouldEnable &&
+    typeof trajectoryLogger.setEnabled === "function"
+  ) {
+    trajectoryLogger.setEnabled(shouldEnable);
+    logger.info(
+      `[milady] trajectory_logger defaulted ${shouldEnable ? "on" : "off"} (${context})`,
+    );
   }
 }
 
@@ -633,7 +642,10 @@ const CHANNEL_ENV_MAP: Readonly<
     userToken: "SLACK_USER_TOKEN",
   },
   signal: {
-    account: "SIGNAL_ACCOUNT",
+    authDir: "SIGNAL_AUTH_DIR",
+    account: "SIGNAL_ACCOUNT_NUMBER",
+    httpUrl: "SIGNAL_HTTP_URL",
+    cliPath: "SIGNAL_CLI_PATH",
   },
   msteams: {
     appId: "MSTEAMS_APP_ID",
@@ -684,7 +696,8 @@ export const CHANNEL_PLUGIN_MAP: Readonly<Record<string, string>> = {
   twitter: "@elizaos/plugin-twitter",
   // Internal connector built from src/plugins/whatsapp (not an npm package).
   whatsapp: "@milady/plugin-whatsapp",
-  signal: "@elizaos/plugin-signal",
+  // Internal connector built from src/plugins/signal (not an npm package).
+  signal: "@milady/plugin-signal",
   imessage: "@elizaos/plugin-imessage",
   bluebubbles: "@elizaos/plugin-bluebubbles",
   farcaster: "@elizaos/plugin-farcaster",
@@ -1265,13 +1278,16 @@ export function resolveMiladyPluginImportSpecifier(
     ? path.resolve(thisDir, "..")
     : thisDir;
   const pluginDir = path.resolve(distRoot, "plugins", shortName);
+  const indexTs = path.resolve(pluginDir, "index.ts");
   const indexJs = path.resolve(pluginDir, "index.js");
   const indexMjs = path.resolve(pluginDir, "index.mjs");
-  const indexPath = existsSync(indexJs)
-    ? indexJs
-    : existsSync(indexMjs)
-      ? indexMjs
-      : null;
+  const indexPath = existsSync(indexTs)
+    ? indexTs
+    : existsSync(indexJs)
+      ? indexJs
+      : existsSync(indexMjs)
+        ? indexMjs
+        : null;
 
   return indexPath ? pathToFileURL(indexPath).href : pluginName;
 }
@@ -2854,22 +2870,42 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
   // Resolve name: agents list → ui assistant → "Milady"
   const agentEntry = config.agents?.list?.[0];
   const name = agentEntry?.name ?? config.ui?.assistant?.name ?? "Milady";
+  const bundledPreset = (() => {
+    const presetByName: Record<string, string> = {
+      Reimu: "uwu~",
+      Marisa: "hell yeah",
+      Yukari: "lol k",
+      Sakuya: "Noted.",
+      Koishi: "hehe~",
+      Remilia: "...",
+      Reisen: "locked in",
+    };
+    const presetCatchphrase = presetByName[name.trim()];
+    if (!presetCatchphrase) return undefined;
+    return STYLE_PRESETS.find(
+      (preset) => preset.catchphrase === presetCatchphrase,
+    );
+  })();
 
   // Read personality fields from the agent config entry (set during
   // onboarding from the chosen style preset).  Fall back to generic
   // defaults when the preset data is not present (e.g. pre-onboarding
-  // bootstrap or configs created before this change).
-  const bio = agentEntry?.bio ?? [
-    "{{name}} is an AI assistant powered by Milady and elizaOS.",
-  ];
+  // bootstrap or configs created before this change). For built-in default
+  // characters, fall back to the bundled preset so legacy name-only configs
+  // still retain their default posts/messages.
+  const bio = agentEntry?.bio ??
+    bundledPreset?.bio ?? [
+      "{{name}} is an AI assistant powered by Milady and elizaOS.",
+    ];
   const systemPrompt =
     agentEntry?.system ??
+    bundledPreset?.system ??
     "You are {{name}}, an autonomous AI agent powered by elizaOS.";
-  const style = agentEntry?.style;
-  const adjectives = agentEntry?.adjectives;
-  const topics = agentEntry?.topics;
-  const postExamples = agentEntry?.postExamples;
-  const messageExamples = agentEntry?.messageExamples;
+  const style = agentEntry?.style ?? bundledPreset?.style;
+  const adjectives = agentEntry?.adjectives ?? bundledPreset?.adjectives;
+  const postExamples = agentEntry?.postExamples ?? bundledPreset?.postExamples;
+  const messageExamples =
+    agentEntry?.messageExamples ?? bundledPreset?.messageExamples;
 
   // Collect secrets from process.env (API keys the plugins need)
   const secretKeys = [
@@ -2898,7 +2934,7 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
     "SLACK_BOT_TOKEN",
     "SLACK_APP_TOKEN",
     "SLACK_USER_TOKEN",
-    "SIGNAL_ACCOUNT",
+    "SIGNAL_ACCOUNT_NUMBER",
     "MSTEAMS_APP_ID",
     "MSTEAMS_APP_PASSWORD",
     "MATTERMOST_BOT_TOKEN",
@@ -2970,7 +3006,6 @@ export function buildCharacterFromConfig(config: MiladyConfig): Character {
     system: systemPrompt,
     ...(style ? { style } : {}),
     ...(adjectives ? { adjectives } : {}),
-    ...(topics ? { topics } : {}),
     ...(postExamples ? { postExamples } : {}),
     ...(mappedExamples ? { messageExamples: mappedExamples } : {}),
     secrets,
@@ -3396,7 +3431,6 @@ async function runFirstTimeSetup(config: MiladyConfig): Promise<MiladyConfig> {
     agentConfigEntry.system = chosenTemplate.system;
     agentConfigEntry.style = chosenTemplate.style;
     agentConfigEntry.adjectives = chosenTemplate.adjectives;
-    agentConfigEntry.topics = chosenTemplate.topics;
     agentConfigEntry.postExamples = chosenTemplate.postExamples;
     agentConfigEntry.messageExamples = chosenTemplate.messageExamples;
   }
@@ -3842,6 +3876,7 @@ export async function startEliza(
 
   // Workspace skills directory (highest precedence for overrides)
   const workspaceSkillsDir = workspaceDir ? `${workspaceDir}/skills` : null;
+  const managedSkillsDir = path.join(resolveStateDir(), "skills");
 
   // ── Sandbox mode setup ──────────────────────────────────────────────────
   const sandboxConfig = config.agents?.defaults?.sandbox;
@@ -3989,6 +4024,8 @@ export async function startEliza(
       ...(config.skills?.denyBundled
         ? { SKILLS_DENYLIST: config.skills.denyBundled.join(",") }
         : {}),
+      // Managed skills are stored in the Milady state dir (~/.milady/skills).
+      SKILLS_DIR: managedSkillsDir,
       // Tell plugin-agent-skills where to find bundled + workspace skills
       ...(bundledSkillsDir ? { BUNDLED_SKILLS_DIRS: bundledSkillsDir } : {}),
       ...(workspaceSkillsDir
