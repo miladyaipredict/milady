@@ -1,0 +1,54 @@
+export const POLYGON_CHAIN_ID = 137;
+export const POLYGON_CHAIN_NAME = "polygon";
+export const DEFAULT_CLOB_API_URL = "https://clob.polymarket.com";
+export const DEFAULT_CLOB_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/";
+export const GAMMA_API_URL = "https://gamma-api.polymarket.com";
+export const DATA_API_URL = "https://data-api.polymarket.com";
+export const POLYMARKET_SERVICE_NAME = "polymarket";
+export const POLYMARKET_WALLET_DATA_CACHE_KEY = "polymarket_wallet_data";
+export const POLYMARKET_API_CREDENTIALS_CACHE_KEY = "polymarket_api_credentials";
+export const POLYMARKET_PROVIDER_CACHE_KEY = "polymarket_provider_context";
+export const POLYMARKET_PROVIDER_CACHE_TTL_MS = 5 * 60 * 1000;
+export const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+export const ACCOUNT_STATE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+export const POLYMARKET_ACCOUNT_STATE_CACHE_KEY = "polymarket_account_state";
+export const POLYMARKET_ACTIVITY_CONTEXT_CACHE_KEY = "polymarket_activity_context";
+export const ACTIVITY_HISTORY_MAX_ITEMS = 10;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+export const LLM_CALL_TIMEOUT_MS = 60_000;
+export const DEFAULT_MIN_ORDER_SIZE = "5";
+export const MAX_PRICE = 1.0;
+export const MIN_PRICE = 0.0;
+export const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+export const USDC_DECIMALS = 6;
+export const CTF_EXCHANGE_ADDRESS = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E";
+export const NEG_RISK_CTF_EXCHANGE_ADDRESS = "0xC5d563A36AE78145C45a50134d48A1215220f80a";
+export const NEG_RISK_ADAPTER_ADDRESS = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296";
+export const WS_PING_INTERVAL_MS = 30_000;
+export const WS_RECONNECT_DELAY_MS = 5_000;
+export const WS_MAX_RECONNECT_ATTEMPTS = 5;
+export const DEFAULT_PAGE_LIMIT = 100;
+export const MAX_PAGE_LIMIT = 500;
+export const END_CURSOR = "LTE=";
+
+// Gamma API Rate Limits (per 10-second window)
+export const GAMMA_RATE_LIMIT_GENERAL = 4000;
+export const GAMMA_RATE_LIMIT_EVENTS = 500;
+export const GAMMA_RATE_LIMIT_MARKETS = 300;
+export const GAMMA_RATE_LIMIT_SEARCH = 350;
+export const GAMMA_RATE_LIMIT_WINDOW_MS = 10_000;
+
+// Autonomous trading configuration defaults
+export const AUTONOMOUS_ENABLED_DEFAULT = true;
+export const AUTONOMOUS_TRADE_ENABLED_DEFAULT = true;
+export const MAX_ACTIVE_THESES_DEFAULT = 10;
+export const MIN_TRADE_CONVICTION_DEFAULT = 50;
+export const CONVICTION_DECAY_THRESHOLD_DEFAULT = 30;
+export const REFLECTION_INTERVAL_MS_DEFAULT = 6 * 60 * 60 * 1000; // 6 hours
+export const SCAN_INTERVAL_MS_DEFAULT = 2 * 60 * 60 * 1000; // 2 hours
+export const MIN_TRADE_INTERVAL_MS_DEFAULT = 15 * 60 * 1000; // 15 minutes
+export const MAX_RESEARCH_PER_SCAN_DEFAULT = 2;
+export const SCAN_TIMEOUT_MS_DEFAULT = 5 * 60 * 1000; // 5 minutes
+export const BALANCE_RESERVE_PCT_DEFAULT = 5;
+export const MAX_DAILY_LOSS_USD_DEFAULT = 50;
+export const PORTFOLIO_PROVIDER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes

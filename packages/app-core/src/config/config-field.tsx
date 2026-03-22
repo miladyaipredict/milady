@@ -10,6 +10,7 @@
  */
 
 import { ChevronDown, X } from "lucide-react";
+import { Switch } from "../components/ui-switch";
 import React, { useCallback, useRef, useState } from "react";
 import { useApp } from "../state";
 import type { DynamicValue } from "../types";
@@ -277,34 +278,25 @@ function BooleanFieldInner({ fp: props }: { fp: FieldRenderProps }) {
   };
 
   return (
-    <button
-      type="button"
-      className="flex items-center gap-2.5 cursor-pointer bg-transparent border-none p-0 group"
-      disabled={props.readonly}
-      onClick={() => {
-        handleToggle();
-        fireAction(props, "click");
-      }}
+    <div
+      className="flex items-center gap-2.5"
       data-config-key={props.key}
       data-field-type="boolean"
     >
-      <div
-        className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 ${
-          localVal ? "bg-[var(--accent)]" : "bg-[var(--muted)] opacity-40"
-        }`}
-      >
-        <div
-          className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200 ${
-            localVal ? "left-[21px]" : "left-[3px]"
-          }`}
-        />
-      </div>
+      <Switch
+        checked={localVal}
+        disabled={props.readonly}
+        onChange={() => {
+          handleToggle();
+          fireAction(props, "click");
+        }}
+      />
       <span
         className={`text-xs transition-colors ${localVal ? "text-[var(--text)] font-medium" : "text-[var(--muted)]"}`}
       >
         {localVal ? "Enabled" : "Disabled"}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -1847,7 +1839,7 @@ export function ConfigField({
         {/* Label row */}
         <div className="flex items-center gap-2 mb-1.5">
           <span
-            className="font-semibold leading-tight truncate"
+            className="font-semibold leading-tight"
             style={{
               fontSize: "var(--plugin-label-size)",
               color: "var(--plugin-label)",
@@ -1866,12 +1858,6 @@ export function ConfigField({
 
               {t("config-field.Configured")}
             </span>
-          )}
-          {/* Env key — right-aligned, subtle, only when label differs */}
-          {labelDiffersFromKey && (
-            <code className="text-[10px] font-mono text-[var(--muted)] opacity-0 group-hover/field:opacity-50 transition-opacity truncate ml-auto">
-              {envKey}
-            </code>
           )}
         </div>
 

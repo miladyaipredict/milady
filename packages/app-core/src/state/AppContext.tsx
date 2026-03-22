@@ -84,8 +84,8 @@ import {
 import {
   getBackendStartupTimeoutMs,
   inspectExistingElizaInstall,
-  isElectrobunRuntime,
   invokeDesktopBridgeRequest,
+  isElectrobunRuntime,
   scanProviderCredentials,
 } from "../bridge";
 import {
@@ -123,6 +123,12 @@ import {
   openExternalUrl,
   resolveApiUrl,
 } from "../utils";
+import {
+  computeAgentDeadlineExtensions,
+  getAgentReadyTimeoutMs,
+} from "./agent-startup-timing";
+import { completeResetLocalStateAfterServerWipe as runCompleteResetLocalStateAfterServerWipe } from "./complete-reset-local-state-after-wipe";
+import { handleResetAppliedFromMainCore } from "./handle-reset-applied-from-main";
 import {
   type ActionNotice,
   AGENT_TRANSFER_MIN_PASSWORD_LENGTH,
@@ -187,27 +193,17 @@ import {
   type UiTheme,
 } from "./internal";
 import {
-  computeAgentDeadlineExtensions,
-  getAgentReadyTimeoutMs,
-} from "./agent-startup-timing";
-import {
-  completeResetLocalStateAfterServerWipe as runCompleteResetLocalStateAfterServerWipe,
-} from "./complete-reset-local-state-after-wipe";
-import { handleResetAppliedFromMainCore } from "./handle-reset-applied-from-main";
+  deriveDetectedProviderPrefill,
+  detectExistingOnboardingConnection,
+} from "./onboarding-bootstrap";
 import {
   deriveUiShellModeForTab,
   getTabForShellView,
   shouldStartAtCharacterSelectOnLaunch,
 } from "./shell-routing";
-import {
-  deriveDetectedProviderPrefill,
-  detectExistingOnboardingConnection,
-} from "./onboarding-bootstrap";
 
 const AGENT_STATUS_POLL_INTERVAL_MS = 500;
 const ONBOARDING_GREETING_READY_TIMEOUT_MS = 15_000;
-
-export { AGENT_READY_TIMEOUT_MS } from "./types";
 
 export {
   type ActionNotice,
@@ -275,6 +271,7 @@ export {
   useApp,
   VRM_COUNT,
 } from "./internal";
+export { AGENT_READY_TIMEOUT_MS } from "./types";
 
 import {
   ConfirmModal,
@@ -437,7 +434,10 @@ function isRemoteApiBase(baseUrl: string): boolean {
 /** Verbose trace for Settings / menu “Reset agent” — filter DevTools by `[milady][reset]`. */
 const RESET_LOG_PREFIX = "[milady][reset]";
 
-function logResetDebug(message: string, detail?: Record<string, unknown>): void {
+function logResetDebug(
+  message: string,
+  detail?: Record<string, unknown>,
+): void {
   if (detail !== undefined && Object.keys(detail).length > 0) {
     console.debug(`${RESET_LOG_PREFIX} ${message}`, detail);
   } else {
@@ -2547,10 +2547,14 @@ export function AppProvider({
       true,
     );
     const resetStartedAt = performance.now();
-    logResetInfo("handleReset: starting (POST /api/agent/reset + restart path)", {
-      electrobun: isElectrobunRuntime(),
-      apiBase: client.getBaseUrl() || "(empty — will resolve after reconnect)",
-    });
+    logResetInfo(
+      "handleReset: starting (POST /api/agent/reset + restart path)",
+      {
+        electrobun: isElectrobunRuntime(),
+        apiBase:
+          client.getBaseUrl() || "(empty — will resolve after reconnect)",
+      },
+    );
     logResetInfo(
       "handleReset: tip — reset logs also appear in this window (filter [milady][reset]); API terminal only shows server-side routes",
     );
@@ -2642,10 +2646,13 @@ export function AppProvider({
 
       await completeResetLocalStateAfterServerWipe(postResetAgentStatus);
       const elapsedMs = Math.round(performance.now() - resetStartedAt);
-      logResetInfo("handleReset: success — local UI reset; see server logs for API", {
-        elapsedMs,
-        finalAgentState: postResetAgentStatus?.state ?? null,
-      });
+      logResetInfo(
+        "handleReset: success — local UI reset; see server logs for API",
+        {
+          elapsedMs,
+          finalAgentState: postResetAgentStatus?.state ?? null,
+        },
+      );
       setActionNotice(LIFECYCLE_MESSAGES.reset.success, "success", 3200);
     } catch (err) {
       logResetWarn("handleReset: failed before local UI could reset", err);
@@ -3203,12 +3210,14 @@ export function AppProvider({
           const userMessageCount = conversationMessagesRef.current.filter(
             (m) => m.role === "user" && !m.id.startsWith("temp-"),
           ).length;
-          
+
           if (userMessageCount === 1) {
             // It was 1 before this turn was persisted, so this makes it the 2nd
-            void client.renameConversation(convId, "", { generate: true }).then(() => {
-              void loadConversations();
-            });
+            void client
+              .renameConversation(convId, "", { generate: true })
+              .then(() => {
+                void loadConversations();
+              });
           } else {
             void loadConversations();
           }
@@ -4838,7 +4847,6 @@ export function AppProvider({
 
   const advanceOnboarding = useCallback(
     async (options?: OnboardingNextOptions) => {
-
       if (
         onboardingStep === "providers" &&
         onboardingRunMode === "local" &&
@@ -5808,7 +5816,20 @@ export function AppProvider({
             const resumeConnection = deriveOnboardingResumeConnection(config);
             const resumeFields = deriveOnboardingResumeFields(resumeConnection);
             onboardingResumeConnectionRef.current = resumeConnection;
-            setOnboardingOptions(options);
+
+            const injectedStyles =
+              (typeof window !== "undefined" &&
+                (window as unknown as Record<string, unknown>)
+                  .__APP_ONBOARDING_STYLES__) ||
+              [];
+
+            setOnboardingOptions({
+              ...options,
+              styles:
+                (injectedStyles as StylePreset[]).length > 0
+                  ? (injectedStyles as StylePreset[])
+                  : options.styles,
+            });
 
             // Auto-detect AI provider credentials from local CLI installs.
             // Only auto-fill if no existing connection config was found.

@@ -18,8 +18,6 @@ import {
   Download,
   Image,
   Loader2,
-  Mic,
-  Monitor,
   RefreshCw,
   Search,
   Shield,
@@ -31,6 +29,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isElectrobunRuntime } from "../bridge";
 import { useApp } from "../state";
 import { CodingAgentSettingsSection } from "./CodingAgentSettingsSection";
 import { ConfigPageView } from "./ConfigPageView";
@@ -40,7 +39,6 @@ import { MediaSettingsSection } from "./MediaSettingsSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { ProviderSwitcher } from "./ProviderSwitcher";
 import { ReleaseCenterView } from "./ReleaseCenterView";
-import { VoiceConfigView } from "./VoiceConfigView";
 
 interface SettingsSectionDef {
   id: string;
@@ -51,16 +49,16 @@ interface SettingsSectionDef {
 
 const SETTINGS_SECTIONS: SettingsSectionDef[] = [
   {
-    id: "ai-model",
-    label: "settings.sections.aimodel.label",
-    icon: Bot,
-    description: "settings.sections.aimodel.desc",
-  },
-  {
     id: "cloud",
     label: "providerswitcher.elizaCloud",
     icon: Cloud,
     description: "settings.sections.cloud.desc",
+  },
+  {
+    id: "ai-model",
+    label: "settings.sections.aimodel.label",
+    icon: Bot,
+    description: "settings.sections.aimodel.desc",
   },
   {
     id: "coding-agents",
@@ -75,22 +73,10 @@ const SETTINGS_SECTIONS: SettingsSectionDef[] = [
     description: "settings.sections.walletrpc.desc",
   },
   {
-    id: "desktop",
-    label: "Desktop Workspace",
-    icon: Monitor,
-    description: "Native window, clipboard, dialog, and detached surface tools",
-  },
-  {
     id: "media",
     label: "settings.sections.media.label",
     icon: Image,
     description: "settings.sections.media.desc",
-  },
-  {
-    id: "voice",
-    label: "settings.sections.voice.label",
-    icon: Mic,
-    description: "settings.sections.voice.desc",
   },
   {
     id: "permissions",
@@ -147,42 +133,23 @@ function SettingsSidebar({
   const { t } = useApp();
 
   return (
-    <aside className="hidden w-52 shrink-0 self-stretch border-r border-border bg-bg-accent xl:sticky xl:top-0 xl:flex xl:h-screen">
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* Brand header */}
-        <div className="px-4 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[10px] font-medium text-txt tracking-[0.12em]">
-              SETTINGS
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex size-6 items-center justify-center text-muted transition-colors hover:text-txt"
-              aria-label="Close settings"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 py-3 border-b border-border">
-          <div className="flex items-center gap-2 px-2.5 py-1.5 border border-border bg-bg">
-            <Search className="h-3 w-3 shrink-0 text-muted" aria-hidden />
-            <Input
-              type="text"
-              placeholder={t("settings.searchPlaceholder") || "Search..."}
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="h-6 min-w-0 flex-1 border-0 bg-transparent py-0 pr-0 pl-0 text-[11px] font-mono shadow-none placeholder:text-muted/60 focus-visible:ring-0 focus-visible:ring-offset-0"
-            />
-          </div>
+    <aside className="hidden w-[16rem] shrink-0 self-stretch lg:sticky lg:top-0 lg:flex lg:h-screen">
+      {/* Search */}
+      <div className="px-3 py-3 border-b border-border">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 border border-border bg-bg">
+          <Search className="h-3 w-3 shrink-0 text-muted" aria-hidden />
+          <Input
+            type="text"
+            placeholder={t("settings.searchPlaceholder") || "Search..."}
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="h-6 min-w-0 flex-1 border-0 bg-transparent py-0 pr-0 pl-0 text-[11px] font-mono shadow-none placeholder:text-muted/60 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 px-2">
-          <div className="space-y-0.5">
+        <nav className="flex-1 py-4 px-3">
+          <div className="space-y-1.5">
             {sections.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
@@ -192,19 +159,16 @@ function SettingsSidebar({
                   type="button"
                   onClick={() => onSectionChange(section.id)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`group w-full flex items-center gap-2.5 text-left px-3 py-2 relative
-                    font-mono text-[11px] tracking-wide transition-all duration-150
+                  className={`group w-full flex items-center gap-3 text-left px-3 py-2.5 rounded-lg transition-all duration-150
+                    text-sm
                     ${
                       isActive
-                        ? "text-txt bg-surface"
+                        ? "text-txt font-semibold bg-surface"
                         : "text-muted hover:text-txt hover:bg-surface/50"
                     }`}
                 >
-                  {isActive && (
-                    <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent" />
-                  )}
                   <Icon
-                    className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-accent" : ""}`}
+                    className={`w-4 h-4 shrink-0 ${isActive ? "text-accent" : ""}`}
                   />
                   <span className="truncate">{t(section.label)}</span>
                 </button>
@@ -349,7 +313,7 @@ function AdvancedSection() {
               <Button
                 variant="destructive"
                 size="sm"
-                className="rounded-xl shadow-sm whitespace-normal text-left"
+                className="rounded-xl shadow-sm whitespace-nowrap"
                 onClick={() => {
                   void handleReset();
                 }}
@@ -651,6 +615,15 @@ export function SettingsView({
 
   const sectionsContent = (
     <>
+      {visibleSectionIds.has("cloud") && (
+        <section
+          id="cloud"
+          className="bg-bg rounded-2xl border border-border/50 overflow-hidden relative"
+        >
+          <CloudDashboard />
+        </section>
+      )}
+
       {visibleSectionIds.has("ai-model") && (
         <SectionCard
           id="ai-model"
@@ -673,15 +646,6 @@ export function SettingsView({
         </SectionCard>
       )}
 
-      {visibleSectionIds.has("cloud") && (
-        <section
-          id="cloud"
-          className="bg-bg rounded-2xl border border-border/50 overflow-hidden relative"
-        >
-          <CloudDashboard />
-        </section>
-      )}
-
       {visibleSectionIds.has("wallet-rpc") && (
         <SectionCard
           id="wallet-rpc"
@@ -693,17 +657,6 @@ export function SettingsView({
         </SectionCard>
       )}
 
-      {visibleSectionIds.has("desktop") && (
-        <SectionCard
-          id="desktop"
-          title="Desktop Workspace"
-          description="Native runtime diagnostics, detached windows, file dialogs, clipboard, and shell controls."
-          className="p-4 sm:p-5 lg:p-6"
-        >
-          <DesktopWorkspaceSection />
-        </SectionCard>
-      )}
-
       {visibleSectionIds.has("media") && (
         <SectionCard
           id="media"
@@ -712,17 +665,6 @@ export function SettingsView({
           className="p-4 sm:p-5 lg:p-6"
         >
           <MediaSettingsSection />
-        </SectionCard>
-      )}
-
-      {visibleSectionIds.has("voice") && (
-        <SectionCard
-          id="voice"
-          title={t("settings.sections.voice.label")}
-          description={t("settings.sections.voice.desc")}
-          className="p-4 sm:p-5 lg:p-6"
-        >
-          <VoiceConfigView />
         </SectionCard>
       )}
 
@@ -755,6 +697,14 @@ export function SettingsView({
           description={t("settings.sections.advanced.desc")}
           className="p-4 sm:p-5 lg:p-6"
         >
+          {isElectrobunRuntime() && (
+            <div className="mb-6 pb-6 border-b border-border/40">
+              <h3 className="text-sm font-semibold text-txt mb-4">
+                {t("settings.sections.desktop.label")}
+              </h3>
+              <DesktopWorkspaceSection />
+            </div>
+          )}
           <AdvancedSection />
         </SectionCard>
       )}
@@ -781,23 +731,23 @@ export function SettingsView({
   return (
     <div
       ref={shellRef}
-      className={`settings-shell flex min-h-full min-w-0 w-full flex-row items-start ${inModal ? "h-full min-h-0 overflow-y-auto bg-transparent" : "bg-bg"}`}
+      className="settings-shell plugins-game-modal plugins-game-modal--inline"
     >
-      <SettingsSidebar
-        sections={visibleSections}
-        activeSection={activeSection}
-        onSectionChange={handleSectionChange}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onClose={handleClose}
-      />
+      <div className="plugins-game-list-panel">
+        <SettingsSidebar
+          sections={visibleSections}
+          activeSection={activeSection}
+          onSectionChange={handleSectionChange}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onClose={handleClose}
+        />
+      </div>
 
       <div
-        className={`settings-page-content flex-1 min-w-0 scroll-smooth ${inModal ? "px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6" : "px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10"}`}
+        className={`settings-page-content flex-1 min-w-0 scroll-smoothpx-4 py-4`}
       >
-        <div className="mx-auto max-w-4xl">
-          <div className="space-y-6 pb-20 sm:space-y-8">{sectionsContent}</div>
-        </div>
+        <div className="space-y-6 pb-20 sm:space-y-8">{sectionsContent}</div>
       </div>
     </div>
   );

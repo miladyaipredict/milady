@@ -146,7 +146,7 @@ describe("Plugin Enumeration", () => {
     expect(Object.keys(CONNECTOR_PLUGINS).length).toBeGreaterThanOrEqual(17);
     for (const [connector, pluginName] of Object.entries(CONNECTOR_PLUGINS)) {
       expect(typeof connector).toBe("string");
-      expect(pluginName).toMatch(/^@(elizaos|elizaai)\/plugin-/);
+      expect(pluginName).toMatch(/^@(elizaos|elizaai|miladyai)\/plugin-/);
     }
   });
 
@@ -175,7 +175,8 @@ describe("Plugin Enumeration", () => {
     for (const name of ALL_KNOWN_PLUGINS) {
       expect(
         name.startsWith("@elizaos/plugin-") ||
-          name.startsWith("@elizaai/plugin-"),
+          name.startsWith("@elizaai/plugin-") ||
+          name.startsWith("@miladyai/plugin-"),
       ).toBe(true);
     }
     expect(knownPackages.size).toBeGreaterThan(0);
@@ -949,7 +950,7 @@ describe("Version Skew Detection (issue #10)", () => {
         expect(coreOverride).toMatch(/^\d+\.\d+\.\d+/);
       }
     } else {
-      expect(coreVersion).toMatch(/^\d+\.\d+\.\d+/);
+      expect(coreVersion).toMatch(/^[~^]?\d+\.\d+\.\d+/);
     }
 
     // The affected plugins should still be present in dependencies

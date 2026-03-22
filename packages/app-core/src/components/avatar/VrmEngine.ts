@@ -138,7 +138,9 @@ type RendererLike = Pick<
   toneMapping?: THREE.ToneMapping;
   toneMappingExposure?: number;
   xr?: THREE.WebGLRenderer["xr"];
-  setAnimationLoop?: (callback: ((time: number, frame?: any) => void) | null) => void;
+  setAnimationLoop?: (
+    callback: ((time: number, frame?: any) => void) | null,
+  ) => void;
 };
 
 type TeleportFallbackShader = {
@@ -216,6 +218,7 @@ const SPARK_MAX_PIXEL_RADIUS = 96;
 const SPARK_MAX_PIXEL_RADIUS_NEAR = 28;
 const MAX_RENDERER_PIXEL_RATIO = 2;
 const AVATAR_RENDERER_OVERRIDE_KEY = "eliza.avatarRenderer";
+const LOOKING_GLASS_ENABLED_KEY = "eliza.avatarLookingGlass";
 const KNOWN_VRM_WEBGPU_WARNING =
   'TSL: "transformedNormalView" is deprecated. Use "normalView" instead.';
 
@@ -260,6 +263,20 @@ function getPreferredAvatarRendererBackend(): RendererBackend {
     return normalizedOverride;
   }
   return isElectrobunAvatarRuntime() ? "webgpu" : "webgl";
+}
+
+function isLookingGlassEnabled(): boolean {
+  if (typeof window === "undefined" || !isElectrobunAvatarRuntime()) {
+    return false;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOOKING_GLASS_ENABLED_KEY);
+    const normalized = raw?.trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "on";
+  } catch {
+    return false;
+  }
 }
 
 function installKnownVrmWebGpuWarningFilter(): () => void {
@@ -613,6 +630,15 @@ export class VrmEngine {
   private speaking = false;
   private speakingStartTime = 0;
   private readonly blinkController = new VrmBlinkController();
+
+  private splatCache = new Map<
+    string,
+    {
+      mesh: SparkSplatMesh;
+      worldAnchor: THREE.Vector3;
+      worldRevealRadius: number;
+    }
+  >();
   private readonly cameraManager = new VrmCameraManager();
   private emoteAction: THREE.AnimationAction | null = null;
   private emoteTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1176,8 +1202,13 @@ export class VrmEngine {
     reveal.incoming.mesh.objectModifier = undefined;
     this.refreshSplatMesh(reveal.incoming.mesh);
     if (reveal.outgoing) {
+      // Clear the modifier and refresh before hiding so the cached mesh is in a
+      // clean baseline state when it is next reused as the incoming world.
+      // Without this, stale dyno graph references on the modifier cause the
+      // second toggle to render as invisible.
       reveal.outgoing.mesh.objectModifier = undefined;
-      this.disposeSplatMesh(reveal.outgoing.mesh);
+      this.refreshSplatMesh(reveal.outgoing.mesh);
+      reveal.outgoing.mesh.visible = false;
     }
     if (this.worldReveal === reveal) {
       this.worldReveal = null;
@@ -1703,7 +1734,7 @@ export class VrmEngine {
         }
         this.renderer = renderer;
         this.rendererBackend = backend;
-        if (backend === "webgl") {
+        if (backend === "webgl" && isLookingGlassEnabled()) {
           // Looking Glass: create a SEPARATE hidden renderer so the main
           // canvas and camera are never affected by the XR polyfill.
           this.setupLookingGlass();
@@ -1781,6 +1812,11 @@ export class VrmEngine {
     this.loadingAborted = true;
     this.initialized = false;
     this.settleReady();
+    // Flush the world splat cache — dispose all meshes so GPU memory is freed.
+    for (const cached of this.splatCache.values()) {
+      this.disposeSplatMesh(cached.mesh);
+    }
+    this.splatCache.clear();
     this.releaseKnownWebGpuWarningFilter?.();
     this.releaseKnownWebGpuWarningFilter = null;
     if (this.animationFrameId !== null) {
@@ -1865,7 +1901,8 @@ export class VrmEngine {
     const lkgCanvas = document.createElement("canvas");
     lkgCanvas.width = 1;
     lkgCanvas.height = 1;
-    lkgCanvas.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;";
+    lkgCanvas.style.cssText =
+      "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;";
     document.body.appendChild(lkgCanvas);
 
     const lkgR = new THREE.WebGLRenderer({
@@ -1889,11 +1926,11 @@ export class VrmEngine {
     vrBtn.id = "VRButton";
     // Override VRButton's default styles, then force hidden
     vrBtn.style.cssText =
-      "position:fixed;top:50%;left:20px;transform:translateY(-50%);"
-      + "padding:12px 24px;border:1px solid rgba(255,255,255,0.4);"
-      + "border-radius:8px;background:rgba(0,0,0,0.6);"
-      + "color:#fff;font:13px sans-serif;cursor:pointer;z-index:2147483647;"
-      + "pointer-events:auto;";
+      "position:fixed;top:50%;left:20px;transform:translateY(-50%);" +
+      "padding:12px 24px;border:1px solid rgba(255,255,255,0.4);" +
+      "border-radius:8px;background:rgba(0,0,0,0.6);" +
+      "color:#fff;font:13px sans-serif;cursor:pointer;z-index:2147483647;" +
+      "pointer-events:auto;";
     // Force hidden — must be set after cssText and re-applied if VRButton
     // resets its style (it uses a timeout to update button text/style).
     vrBtn.style.display = "none";
@@ -2145,33 +2182,48 @@ export class VrmEngine {
     )
       return;
     const { SplatMesh } = spark;
+    const cached = this.splatCache.get(normalizedUrl);
     let worldAnchor = new THREE.Vector3(0, 0, 0);
     let worldRevealRadius = 1;
-    const splat = new SplatMesh({
-      url: normalizedUrl,
-      constructSplats: (packedSplats) => {
-        worldAnchor = getRobustPackedSplatAnchor(packedSplats);
-        worldRevealRadius = getRobustPackedSplatRadialExtent(
-          packedSplats,
-          worldAnchor,
-        );
-      },
-    });
-    splat.frustumCulled = false;
-    splat.quaternion.identity();
-    splat.position.set(0, 0, 0);
-    splat.scale.setScalar(COMPANION_WORLD_SCALE);
-    this.scene.add(splat);
+    let splat: SparkSplatMesh;
 
-    await splat.initialized;
+    if (cached) {
+      splat = cached.mesh;
+      worldAnchor = cached.worldAnchor;
+      worldRevealRadius = cached.worldRevealRadius;
+      splat.visible = false;
+    } else {
+      splat = new SplatMesh({
+        url: normalizedUrl,
+        constructSplats: (packedSplats) => {
+          worldAnchor = getRobustPackedSplatAnchor(packedSplats);
+          worldRevealRadius = getRobustPackedSplatRadialExtent(
+            packedSplats,
+            worldAnchor,
+          );
+        },
+      });
+      splat.frustumCulled = false;
+      splat.quaternion.identity();
+      splat.position.set(0, 0, 0);
+      splat.scale.setScalar(COMPANION_WORLD_SCALE);
+      splat.visible = false;
+      this.scene.add(splat);
+    }
+
+    if (!cached) {
+      await splat.initialized;
+    }
 
     if (
       this.loadingAborted ||
       !this.scene ||
       requestId !== this.worldLoadRequestId
     ) {
-      splat.parent?.remove(splat);
-      splat.dispose();
+      if (!cached) {
+        splat.parent?.remove(splat);
+        splat.dispose();
+      }
       return;
     }
 
@@ -2183,6 +2235,15 @@ export class VrmEngine {
       -worldCenterBottom.y * COMPANION_WORLD_SCALE + worldFloorOffsetY,
       -worldCenterBottom.z * COMPANION_WORLD_SCALE,
     );
+
+    if (!cached) {
+      this.splatCache.set(normalizedUrl, {
+        mesh: splat,
+        worldAnchor,
+        worldRevealRadius,
+      });
+    }
+
     const syncToTeleport = this.revealStarted && this.teleportProgress < 0.999;
     const waitingForVrm = !outgoingWorld && !this.vrmReady;
     const incomingRevealRadius = Math.max(
@@ -2224,9 +2285,10 @@ export class VrmEngine {
           "hide",
         );
         if (!outgoingReveal) {
-          this.disposeSplatMesh(outgoingWorld);
+          outgoingWorld.visible = false;
         }
       }
+      splat.visible = true;
       this.queueWorldReveal(worldReveal, {
         outgoing: outgoingReveal,
         duration: COMPANION_WORLD_REVEAL_DURATION,
@@ -2235,7 +2297,10 @@ export class VrmEngine {
         initialProgress: syncToTeleport ? this.teleportProgress : 0,
       });
     } else {
-      this.disposeSplatMesh(outgoingWorld);
+      if (outgoingWorld) {
+        outgoingWorld.visible = false;
+      }
+      splat.visible = true;
     }
   }
   async playEmote(
@@ -3079,7 +3144,13 @@ ${isOutgoing ? "if (teleportNoise >= teleportRatio) discard;" : "if (teleportNoi
       this.sparkRenderer.apertureAngle = 0;
     }
     this.cancelWorldReveal();
-    this.disposeSplatMesh(this.worldMesh);
+    // Don't permanently dispose the worldMesh here — it may be held in
+    // splatCache and reused on the next world switch. Just hide it so it
+    // doesn't render. The cache is flushed (and meshes truly disposed) only
+    // when the engine itself is torn down via dispose().
+    if (this.worldMesh) {
+      this.worldMesh.visible = false;
+    }
     this.worldMesh = null;
   }
   private async loadAndPlayIdle(vrm: VRM): Promise<void> {

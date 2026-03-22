@@ -9,6 +9,7 @@ import {
   resolveRunnableTestFiles,
   runChecks,
   scanDiffTextForBlockedPatterns,
+  splitRunnableTestFiles,
   scopeVerdictFor,
 } from "../../../../scripts/pre-review-local.mjs";
 
@@ -39,6 +40,13 @@ describe("pre-review-local helpers", () => {
       classificationFromInputs({
         branch: "chore/ci-parity",
         message: "add helper script",
+      }),
+    ).toBe("feature");
+
+    expect(
+      classificationFromInputs({
+        branch: "feat/add-wechat-connector",
+        message: "add connector wiring",
       }),
     ).toBe("feature");
   });
@@ -110,6 +118,23 @@ index 1234567..89abcde 100644
     expect(issues.some((issue) => issue.includes("`any` usage"))).toBe(false);
   });
 
+  it("ignores formatting-only any diffs when count stays flat", () => {
+    const diff = `
+diff --git a/src/example.ts b/src/example.ts
+index 1234567..89abcde 100644
+--- a/src/example.ts
++++ b/src/example.ts
+@@ -1 +1,3 @@
+-  setAnimationLoop?: (callback: ((time: number, frame?: any) => void) | null) => void;
++  setAnimationLoop?: (
++    callback: ((time: number, frame?: any) => void) | null,
++  ) => void;
+`;
+
+    const issues = scanDiffTextForBlockedPatterns(diff);
+    expect(issues.some((issue) => issue.includes("`any` usage"))).toBe(false);
+  });
+
   it("flags ts-ignore and secret-like assignments", () => {
     const diff = `
 + // @ts-ignore temporary
@@ -122,6 +147,18 @@ index 1234567..89abcde 100644
     );
     expect(issues.some((issue) => issue.includes("secret-like string"))).toBe(
       true,
+    );
+  });
+
+  it("ignores short apiKey placeholders in docs examples", () => {
+    const diff = `
++      "apiKey": "<key>",
++      "proxyUrl": "https://proxy.example.com"
+`;
+
+    const issues = scanDiffTextForBlockedPatterns(diff);
+    expect(issues.some((issue) => issue.includes("secret-like string"))).toBe(
+      false,
     );
   });
 
@@ -170,5 +207,20 @@ index 1234567..89abcde 100644
     );
 
     expect(resolved).toEqual(["kept.test.ts"]);
+  });
+
+  it("routes only root e2e tests to the e2e config runner", () => {
+    expect(
+      splitRunnableTestFiles([
+        "packages/app-core/src/components/SettingsView.test.tsx",
+        "packages/app-core/test/app/settings-sections.e2e.test.ts",
+        "test/health-endpoint.e2e.test.ts",
+        "apps/homepage/src/routes/home.test.tsx",
+      ]),
+    ).toEqual({
+      repoTests: ["packages/app-core/src/components/SettingsView.test.tsx"],
+      repoE2eTests: ["test/health-endpoint.e2e.test.ts"],
+      homepageTests: ["src/routes/home.test.tsx"],
+    });
   });
 });
