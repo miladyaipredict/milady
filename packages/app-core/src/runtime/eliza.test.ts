@@ -151,6 +151,9 @@ describe("collectPluginNames", () => {
     "ELIZA_CLOUD_RPC_DISABLED",
     "MILADY_DISABLE_EDGE_TTS",
     "ELIZA_DISABLE_EDGE_TTS",
+    // Polymarket auto-enable env keys
+    "POLYMARKET_PRIVATE_KEY",
+    "CLOB_API_KEY",
   ];
   const snap = envSnapshot(envKeys);
   beforeEach(() => {
@@ -293,6 +296,62 @@ describe("collectPluginNames", () => {
     const names = collectPluginNames(config);
     expect(names.has("@elizaos/plugin-agent-orchestrator")).toBe(false);
     expect(names.has("@elizaos/plugin-edge-tts")).toBe(false);
+  });
+
+  describe("Polymarket auto-enable", () => {
+    it("adds polymarket + evm when POLYMARKET_PRIVATE_KEY is set", () => {
+      process.env.POLYMARKET_PRIVATE_KEY = "0xdeadbeef";
+      const names = collectPluginNames({} as ElizaConfig);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(true);
+      expect(names.has("@elizaos/plugin-evm")).toBe(true);
+    });
+
+    it("adds polymarket + evm when CLOB_API_KEY is set", () => {
+      process.env.CLOB_API_KEY = "test-clob-key";
+      const names = collectPluginNames({} as ElizaConfig);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(true);
+      expect(names.has("@elizaos/plugin-evm")).toBe(true);
+    });
+
+    it("does not add polymarket or evm when no credentials are set", () => {
+      const names = collectPluginNames({} as ElizaConfig);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(false);
+      expect(names.has("@elizaos/plugin-evm")).toBe(false);
+    });
+
+    it("omits polymarket when plugins.entries.polymarket.enabled is false", () => {
+      process.env.POLYMARKET_PRIVATE_KEY = "0xdeadbeef";
+      const config = {
+        plugins: {
+          entries: { polymarket: { enabled: false } },
+        },
+      } as Partial<ElizaConfig> as ElizaConfig;
+      const names = collectPluginNames(config);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(false);
+      // evm should still load since polymarket creds are present and evm is not disabled
+      expect(names.has("@elizaos/plugin-evm")).toBe(true);
+    });
+
+    it("omits evm when plugins.entries.evm.enabled is false but still loads polymarket", () => {
+      process.env.POLYMARKET_PRIVATE_KEY = "0xdeadbeef";
+      const config = {
+        plugins: {
+          entries: { evm: { enabled: false } },
+        },
+      } as Partial<ElizaConfig> as ElizaConfig;
+      const names = collectPluginNames(config);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(true);
+      expect(names.has("@elizaos/plugin-evm")).toBe(false);
+    });
+
+    it("resolves short ID 'polymarket' to full package name", () => {
+      process.env.POLYMARKET_PRIVATE_KEY = "0xdeadbeef";
+      const names = collectPluginNames({} as ElizaConfig);
+      expect(names.has("polymarket")).toBe(false);
+      expect(names.has("@elizaos/plugin-polymarket")).toBe(true);
+      expect(names.has("evm")).toBe(false);
+      expect(names.has("@elizaos/plugin-evm")).toBe(true);
+    });
   });
 
   it("does not load @elizaos/plugin-shell when features.shellEnabled is false", () => {
