@@ -1,5 +1,6 @@
 import {
   type AgentRuntime,
+  AgentRuntime as AgentRuntimeClass,
   type Plugin,
   AutonomyService,
   ChannelType,
@@ -78,6 +79,28 @@ const POLYMARKET_SHORT_ID_MAP: ReadonlyArray<readonly [string, string]> = [
   ["polymarket", POLYMARKET_PLUGIN],
   ["evm", EVM_PLUGIN],
 ];
+
+// ── Prototype-level getSetting patch ────────────────────────────────────
+// The upstream boot wraps `runtime.getSetting` with an env-var fallback,
+// but its allowlist doesn't include Polymarket keys. By patching the
+// prototype BEFORE boot, the upstream wrapper captures our patched version
+// as `originalGetSetting`, so Polymarket env vars are resolvable during
+// plugin init (before `repairRuntimeAfterBoot` runs).
+{
+  const proto = AgentRuntimeClass.prototype as unknown as {
+    getSetting: (key: string) => string | boolean | number | null;
+  };
+  const originalProtoGetSetting = proto.getSetting;
+  proto.getSetting = function (key: string) {
+    const result = originalProtoGetSetting.call(this, key);
+    if (result !== null && result !== undefined) return result;
+    if (POLYMARKET_GETSETTING_KEYS.has(key)) {
+      const envVal = process.env[key];
+      if (envVal !== undefined && envVal.trim() !== "") return envVal;
+    }
+    return result;
+  };
+}
 
 /**
  * Pre-boot: enable Polymarket + EVM in eliza.json when credentials are detected.
