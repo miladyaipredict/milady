@@ -26,7 +26,7 @@ import {
   syncElizaEnvToMilady,
   syncMiladyEnvToEliza,
 } from "../config/brand-env.js";
-import { loadElizaConfig } from "../config/config.js";
+import { loadElizaConfig, saveElizaConfig } from "../config/config.js";
 import { STYLE_PRESETS } from "../onboarding-presets.js";
 import { normalizeCharacterMessageExamples } from "../utils/character-message-examples";
 import { ensureRuntimeSqlCompatibility } from "../utils/sql-compat";
@@ -78,6 +78,45 @@ const POLYMARKET_SHORT_ID_MAP: ReadonlyArray<readonly [string, string]> = [
   ["polymarket", POLYMARKET_PLUGIN],
   ["evm", EVM_PLUGIN],
 ];
+
+/**
+ * Pre-boot: enable Polymarket + EVM in eliza.json when credentials are detected.
+ *
+ * Upstream `collectPluginNames` reads `config.plugins.entries` from disk and
+ * loads any plugin with `enabled !== false` (line 719-731 of upstream eliza.js).
+ * Milady's `collectPluginNames` wrapper is NOT called during boot (upstream uses
+ * its own). Writing to the config file is the only way to inject plugins into
+ * the upstream boot path.
+ *
+ * Only writes when credentials exist AND the entry isn't already explicitly set.
+ * Respects `enabled: false` (user override).
+ */
+function ensurePolymarketConfigEntries(): void {
+  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some((k) =>
+    process.env[k]?.trim(),
+  );
+  if (!hasPolymarketCreds) return;
+
+  const config = loadElizaConfig();
+  config.plugins = config.plugins ?? {};
+  config.plugins.entries = config.plugins.entries ?? {};
+
+  let changed = false;
+  for (const pluginId of ["polymarket", "evm"]) {
+    const entry = config.plugins.entries[pluginId];
+    // Don't override explicit user settings
+    if (entry && typeof entry === "object" && "enabled" in entry) continue;
+    config.plugins.entries[pluginId] = { enabled: true };
+    changed = true;
+  }
+
+  if (changed) {
+    saveElizaConfig(config);
+    logger.info(
+      "[milady] Auto-enabled Polymarket plugin (credentials detected in env)",
+    );
+  }
+}
 
 export function isMiladyEdgeTtsDisabled(
   config: Parameters<typeof upstreamCollectPluginNames>[0],
@@ -725,6 +764,7 @@ export async function bootElizaRuntime(
   opts: BootElizaRuntimeOptionsExt = {},
 ): Promise<Awaited<ReturnType<typeof upstreamBootElizaRuntime>>> {
   syncMiladyEnvToEliza();
+  ensurePolymarketConfigEntries();
 
   try {
     // Eagerly download the embedding model before the full runtime boot.
@@ -755,6 +795,7 @@ export async function startEliza(
   options?: StartElizaOptionsExt,
 ): Promise<Awaited<ReturnType<typeof upstreamStartEliza>>> {
   syncMiladyEnvToEliza();
+  ensurePolymarketConfigEntries();
 
   try {
     // Eagerly download the embedding model with progress reporting
