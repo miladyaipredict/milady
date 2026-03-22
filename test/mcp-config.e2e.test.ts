@@ -6,8 +6,8 @@
  */
 
 import http from "node:http";
+import { startApiServer } from "@miladyai/app-core/src/api/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startApiServer } from "../src/api/server";
 
 // ---------------------------------------------------------------------------
 // HTTP helper (matches api-server.e2e.test.ts)
