@@ -1,5 +1,6 @@
 import {
   type AgentRuntime,
+  AgentRuntime as AgentRuntimeClass,
   AutonomyService,
   ChannelType,
   logger,
@@ -26,7 +27,7 @@ import {
   syncElizaEnvToMilady,
   syncMiladyEnvToEliza,
 } from "../config/brand-env.js";
-import { loadElizaConfig } from "../config/config.js";
+import { loadElizaConfig, saveElizaConfig } from "../config/config.js";
 import { STYLE_PRESETS } from "../onboarding-presets.js";
 import { normalizeCharacterMessageExamples } from "../utils/character-message-examples";
 import { ensureRuntimeSqlCompatibility } from "../utils/sql-compat";
@@ -63,6 +64,83 @@ const LEGACY_INTERNAL_CHANNEL_PLUGIN_NAMES = new Map<string, string>(
 /** Swarm / PTY paths call TEXT_TO_SPEECH; Edge TTS supplies that model with no API key. */
 const AGENT_ORCHESTRATOR_PLUGIN = "@elizaos/plugin-agent-orchestrator";
 const EDGE_TTS_PLUGIN = "@elizaos/plugin-edge-tts";
+const POLYMARKET_PLUGIN = "@elizaos/plugin-polymarket";
+const EVM_PLUGIN = "@elizaos/plugin-evm";
+
+/** Env vars that signal Polymarket credentials are configured. */
+const POLYMARKET_ENV_KEYS = ["POLYMARKET_PRIVATE_KEY", "CLOB_API_KEY"] as const;
+
+/**
+ * Short-ID-to-full-package-name resolution for Polymarket ecosystem plugins.
+ * Upstream `collectPluginNames` may place bare short IDs (e.g. "polymarket")
+ * into the plugin set via the allow list. These short IDs fail at
+ * `import("polymarket")` because `OPTIONAL_PLUGIN_MAP` doesn't map them.
+ */
+const POLYMARKET_SHORT_ID_MAP: ReadonlyArray<readonly [string, string]> = [
+  ["polymarket", POLYMARKET_PLUGIN],
+  ["evm", EVM_PLUGIN],
+];
+
+// ── Prototype-level getSetting patch ────────────────────────────────────
+// The upstream boot wraps `runtime.getSetting` with an env-var fallback,
+// but its allowlist doesn't include Polymarket keys. By patching the
+// prototype BEFORE boot, the upstream wrapper captures our patched version
+// as `originalGetSetting`, so Polymarket env vars are resolvable during
+// plugin init (before `repairRuntimeAfterBoot` runs).
+{
+  const proto = AgentRuntimeClass.prototype as unknown as {
+    getSetting: (key: string) => string | boolean | number | null;
+  };
+  const originalProtoGetSetting = proto.getSetting;
+  proto.getSetting = function (key: string) {
+    const result = originalProtoGetSetting.call(this, key);
+    if (result !== null && result !== undefined) return result;
+    if (POLYMARKET_GETSETTING_KEYS.has(key)) {
+      const envVal = process.env[key];
+      if (envVal !== undefined && envVal.trim() !== "") return envVal;
+    }
+    return result;
+  };
+}
+
+/**
+ * Pre-boot: enable Polymarket + EVM in eliza.json when credentials are detected.
+ *
+ * Upstream `collectPluginNames` reads `config.plugins.entries` from disk and
+ * loads any plugin with `enabled !== false` (line 719-731 of upstream eliza.js).
+ * Milady's `collectPluginNames` wrapper is NOT called during boot (upstream uses
+ * its own). Writing to the config file is the only way to inject plugins into
+ * the upstream boot path.
+ *
+ * Only writes when credentials exist AND the entry isn't already explicitly set.
+ * Respects `enabled: false` (user override).
+ */
+function ensurePolymarketConfigEntries(): void {
+  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some((k) =>
+    process.env[k]?.trim(),
+  );
+  if (!hasPolymarketCreds) return;
+
+  const config = loadElizaConfig();
+  config.plugins = config.plugins ?? {};
+  config.plugins.entries = config.plugins.entries ?? {};
+
+  let changed = false;
+  for (const pluginId of ["polymarket", "evm"]) {
+    const entry = config.plugins.entries[pluginId];
+    // Don't override explicit user settings
+    if (entry && typeof entry === "object" && "enabled" in entry) continue;
+    config.plugins.entries[pluginId] = { enabled: true };
+    changed = true;
+  }
+
+  if (changed) {
+    saveElizaConfig(config);
+    logger.info(
+      "[milady] Auto-enabled Polymarket plugin (credentials detected in env)",
+    );
+  }
+}
 
 export function isMiladyEdgeTtsDisabled(
   config: Parameters<typeof upstreamCollectPluginNames>[0],
@@ -178,6 +256,28 @@ export function collectPluginNames(
   ) {
     result.add(EDGE_TTS_PLUGIN);
   }
+
+  // Polymarket: auto-enable when credentials are detected in env.
+  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some((k) =>
+    process.env[k]?.trim(),
+  );
+  if (hasPolymarketCreds) {
+    if (config?.plugins?.entries?.polymarket?.enabled !== false) {
+      result.add(POLYMARKET_PLUGIN);
+    }
+    if (config?.plugins?.entries?.evm?.enabled !== false) {
+      result.add(EVM_PLUGIN);
+    }
+  }
+
+  // Resolve bare short IDs that may arrive from the allow list or other paths.
+  for (const [shortId, fullName] of POLYMARKET_SHORT_ID_MAP) {
+    if (result.has(shortId)) {
+      result.delete(shortId);
+      result.add(fullName);
+    }
+  }
+
   syncBrandEnvAliases();
   return result;
 }
@@ -389,9 +489,57 @@ async function ensureAutonomyBootstrapContext(
   }
 }
 
+/**
+ * Env keys that Polymarket plugin actions read via `runtime.getSetting()`.
+ * The upstream getSetting wrapper only allows a hardcoded allowlist of env
+ * keys. Polymarket keys are not on it, so `getSetting("CLOB_API_URL")`
+ * returns null even when the value is in process.env. We extend the
+ * wrapper to also check these keys.
+ */
+const POLYMARKET_GETSETTING_KEYS = new Set([
+  // Primary config
+  "POLYMARKET_PRIVATE_KEY",
+  "CLOB_API_URL",
+  "CLOB_WS_URL",
+  "CLOB_API_KEY",
+  "CLOB_API_SECRET",
+  "CLOB_API_PASSPHRASE",
+  // Auth & signing
+  "POLYMARKET_SIGNATURE_TYPE",
+  "POLYMARKET_FUNDER_ADDRESS",
+  "POLYMARKET_FUNDER",
+  "POLYMARKET_ALLOW_CREATE_API_KEY",
+  // Fallback key names the plugin also checks
+  "CLOB_SECRET",
+  "CLOB_PASS_PHRASE",
+  "CLOB_SIGNATURE_TYPE",
+  "CLOB_FUNDER_ADDRESS",
+  // Private key fallbacks
+  "EVM_PRIVATE_KEY",
+  "WALLET_PRIVATE_KEY",
+  "PRIVATE_KEY",
+  // Provider tuning
+  "POLYMARKET_PROVIDER_STRICT",
+  "POLYMARKET_PROVIDER_CACHE_TTL_MS",
+]);
+
+function extendGetSettingForPolymarket(runtime: AgentRuntime): void {
+  const original = runtime.getSetting.bind(runtime);
+  runtime.getSetting = (key: string) => {
+    const result = original(key);
+    if (result !== null && result !== undefined) return result;
+    if (POLYMARKET_GETSETTING_KEYS.has(key)) {
+      const envVal = process.env[key];
+      if (envVal !== undefined && envVal.trim() !== "") return envVal;
+    }
+    return result;
+  };
+}
+
 async function repairRuntimeAfterBoot(
   runtime: AgentRuntime,
 ): Promise<AgentRuntime> {
+  extendGetSettingForPolymarket(runtime);
   await ensureRuntimeSqlCompatibility(runtime);
   await ensureMiladyTextToSpeechHandler(runtime);
   await ensureAutonomyBootstrapContext(runtime);
@@ -684,6 +832,7 @@ export async function bootElizaRuntime(
   opts: BootElizaRuntimeOptionsExt = {},
 ): Promise<Awaited<ReturnType<typeof upstreamBootElizaRuntime>>> {
   syncMiladyEnvToEliza();
+  ensurePolymarketConfigEntries();
 
   try {
     // Eagerly download the embedding model before the full runtime boot.
@@ -714,6 +863,7 @@ export async function startEliza(
   options?: StartElizaOptionsExt,
 ): Promise<Awaited<ReturnType<typeof upstreamStartEliza>>> {
   syncMiladyEnvToEliza();
+  ensurePolymarketConfigEntries();
 
   try {
     // Eagerly download the embedding model with progress reporting
