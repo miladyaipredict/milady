@@ -470,15 +470,30 @@ async function ensureAutonomyBootstrapContext(
  * wrapper to also check these keys.
  */
 const POLYMARKET_GETSETTING_KEYS = new Set([
+  // Primary config
+  "POLYMARKET_PRIVATE_KEY",
   "CLOB_API_URL",
   "CLOB_WS_URL",
   "CLOB_API_KEY",
   "CLOB_API_SECRET",
   "CLOB_API_PASSPHRASE",
-  "POLYMARKET_PRIVATE_KEY",
+  // Auth & signing
   "POLYMARKET_SIGNATURE_TYPE",
   "POLYMARKET_FUNDER_ADDRESS",
+  "POLYMARKET_FUNDER",
   "POLYMARKET_ALLOW_CREATE_API_KEY",
+  // Fallback key names the plugin also checks
+  "CLOB_SECRET",
+  "CLOB_PASS_PHRASE",
+  "CLOB_SIGNATURE_TYPE",
+  "CLOB_FUNDER_ADDRESS",
+  // Private key fallbacks
+  "EVM_PRIVATE_KEY",
+  "WALLET_PRIVATE_KEY",
+  "PRIVATE_KEY",
+  // Provider tuning
+  "POLYMARKET_PROVIDER_STRICT",
+  "POLYMARKET_PROVIDER_CACHE_TTL_MS",
 ]);
 
 function extendGetSettingForPolymarket(runtime: AgentRuntime): void {
