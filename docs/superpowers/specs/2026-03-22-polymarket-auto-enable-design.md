@@ -13,7 +13,11 @@ Auto-enable the Polymarket plugin (and its `evm` dependency) when `POLYMARKET_PR
 
 ## Approach
 
-Milady-local extension of the upstream auto-enable mechanism. Two touch points in `packages/app-core/src/runtime/eliza.ts`, plus tests.
+Single touch point in Milady's `collectPluginNames` wrapper (`packages/app-core/src/runtime/eliza.ts`), plus tests.
+
+### Why not `AUTH_PROVIDER_PLUGINS`?
+
+The upstream `applyPluginAutoEnable` deep-clones the config via `structuredClone` and its return value is discarded by the boot flow (`resolvePlugins` at line 1023 of upstream `eliza.js`). Mutations to the allow list never reach `collectPluginNames`. Patching `AUTH_PROVIDER_PLUGINS` would be a no-op at runtime.
 
 ### Why not upstream?
 
@@ -25,62 +29,58 @@ A config preset (`plugins.entries.polymarket.enabled: true`) would always show O
 
 ## Design
 
-### Touch Point 1: Env Detection — Patch `AUTH_PROVIDER_PLUGINS`
-
-**File:** `packages/app-core/src/runtime/eliza.ts` (module-level)
-
-Mutate the upstream `AUTH_PROVIDER_PLUGINS` object (exported as `const` — binding is const, object is mutable) to add Polymarket env var mappings:
-
-```typescript
-import { AUTH_PROVIDER_PLUGINS } from "../config/plugin-auto-enable";
-
-AUTH_PROVIDER_PLUGINS["POLYMARKET_PRIVATE_KEY"] = "@elizaos/plugin-polymarket";
-AUTH_PROVIDER_PLUGINS["CLOB_API_KEY"] = "@elizaos/plugin-polymarket";
-```
-
-**Effect:** When the upstream `applyPluginAutoEnable` runs during boot, it iterates `Object.entries(AUTH_PROVIDER_PLUGINS)`. If either env var is set and non-empty, it pushes the short ID `"polymarket"` to `config.plugins.allow`. It respects `plugins.entries.polymarket.enabled === false` (skip if explicitly disabled).
-
-### Touch Point 2: Name Resolution — Extend `collectPluginNames` Wrapper
+### Single Touch Point: Env Detection + Plugin Injection in `collectPluginNames`
 
 **File:** `packages/app-core/src/runtime/eliza.ts`, inside the existing `collectPluginNames` wrapper
 
-The upstream `collectPluginNames` resolves allow-list entries through `CHANNEL_PLUGIN_MAP` and `OPTIONAL_PLUGIN_MAP`. Neither contains `"polymarket"` or `"evm"`, so the short IDs pass through as-is and `import("polymarket")` would fail at runtime.
-
-Add short-ID-to-full-package resolution (same pattern as `LEGACY_INTERNAL_CHANNEL_PLUGIN_NAMES`):
+The wrapper already conditionally adds plugins (Edge TTS when agent-orchestrator is present) and resolves legacy names. We add Polymarket auto-enable using the same pattern: check env vars, respect user overrides, add full package names directly.
 
 ```typescript
-const POLYMARKET_PLUGIN_RESOLUTION: ReadonlyArray<[string, string]> = [
+// Polymarket: auto-enable when credentials detected
+const hasPolymarketCreds =
+  process.env.POLYMARKET_PRIVATE_KEY?.trim() ||
+  process.env.CLOB_API_KEY?.trim();
+
+if (hasPolymarketCreds) {
+  if (config?.plugins?.entries?.polymarket?.enabled !== false) {
+    result.add("@elizaos/plugin-polymarket");
+  }
+  if (
+    config?.plugins?.entries?.evm?.enabled !== false &&
+    !result.has("@elizaos/plugin-evm")
+  ) {
+    result.add("@elizaos/plugin-evm");
+  }
+}
+
+// Resolve short IDs that may arrive via other paths (allow list, manual config)
+for (const [shortId, fullName] of [
   ["polymarket", "@elizaos/plugin-polymarket"],
   ["evm", "@elizaos/plugin-evm"],
-];
-
-// Inside collectPluginNames, after upstream call and legacy name resolution:
-for (const [shortId, fullName] of POLYMARKET_PLUGIN_RESOLUTION) {
+] as const) {
   if (result.has(shortId)) {
     result.delete(shortId);
     result.add(fullName);
   }
 }
-
-// Ensure evm dependency loads alongside polymarket
-if (
-  result.has("@elizaos/plugin-polymarket") &&
-  !result.has("@elizaos/plugin-evm")
-) {
-  result.add("@elizaos/plugin-evm");
-}
 ```
 
-### Touch Point 3: Tests
+**Why full package names?** The upstream `collectPluginNames` resolves allow-list entries through `CHANNEL_PLUGIN_MAP` and `OPTIONAL_PLUGIN_MAP`. Neither contains `"polymarket"` or `"evm"`, so short IDs would pass through as-is and `import("polymarket")` would fail. By adding the full `@elizaos/plugin-*` names directly, we bypass this resolution gap.
 
-**File:** `packages/app-core/src/config/plugin-auto-enable.test.ts`
+**Why check both polymarket AND evm user overrides?** If a user explicitly disables EVM (`plugins.entries.evm.enabled: false`), we respect that — same pattern as `isMiladyEdgeTtsDisabled(config)` for Edge TTS.
 
-Add test cases:
+### Tests
 
-1. `POLYMARKET_PRIVATE_KEY` set → `applyPluginAutoEnable` adds `"polymarket"` to `plugins.allow`
+**File:** `packages/app-core/src/runtime/eliza.test.ts` (or new `polymarket-auto-enable.test.ts`)
+
+Test cases:
+
+1. `POLYMARKET_PRIVATE_KEY` set → `collectPluginNames` result includes `@elizaos/plugin-polymarket` and `@elizaos/plugin-evm`
 2. `CLOB_API_KEY` set → same
-3. Neither set → `"polymarket"` not in allow list
-4. `plugins.entries.polymarket.enabled: false` + env var set → `"polymarket"` not added (user override)
+3. Neither set → neither plugin in result
+4. `plugins.entries.polymarket.enabled: false` + env var set → `@elizaos/plugin-polymarket` not added
+5. `plugins.entries.evm.enabled: false` + env var set → `@elizaos/plugin-evm` not added, but `@elizaos/plugin-polymarket` still added
+6. Short ID `"polymarket"` in result (from allow list) → resolved to `@elizaos/plugin-polymarket`
 
 ### UI Behavior
 
@@ -91,15 +91,17 @@ No changes needed. `buildPluginListResponse` in `server.ts` checks `isPluginLoad
 ```
 Boot sequence:
   1. syncMiladyEnvToEliza()
-  2. upstreamBootElizaRuntime() calls:
-     a. applyPluginAutoEnable({ config, env: process.env })
-        → iterates AUTH_PROVIDER_PLUGINS (now includes POLYMARKET_PRIVATE_KEY, CLOB_API_KEY)
-        → if env var present, pushes "polymarket" to config.plugins.allow
-     b. collectPluginNames(config)
-        → upstream reads config.plugins.allow, adds "polymarket" to pluginsToLoad
-        → Milady wrapper resolves "polymarket" → "@elizaos/plugin-polymarket"
-        → Milady wrapper ensures "@elizaos/plugin-evm" is also in set
-     c. resolvePlugins() loads all plugins in pluginsToLoad
+  2. upstreamBootElizaRuntime() calls resolvePlugins(config) which calls:
+     a. applyPluginAutoEnable({ config, env }) — return discarded (upstream bug)
+     b. collectPluginNames(config) — Milady's wrapper runs:
+        i.  Upstream collectPluginNames builds base set from core + allow + connectors + env
+        ii. Milady wrapper: legacy name resolution
+        iii. Milady wrapper: Edge TTS injection (existing)
+        iv. Milady wrapper: Polymarket env detection (NEW)
+            → checks POLYMARKET_PRIVATE_KEY / CLOB_API_KEY
+            → if present and not user-disabled, adds @elizaos/plugin-polymarket + @elizaos/plugin-evm
+        v.  Milady wrapper: short ID resolution for polymarket/evm (NEW)
+     c. resolvePlugins() loads all plugins in the set
   3. UI queries /api/plugins → buildPluginListResponse sees polymarket active → reports ON
 ```
 
@@ -107,11 +109,11 @@ Boot sequence:
 
 | File | Change |
 |------|--------|
-| `packages/app-core/src/runtime/eliza.ts` | Patch `AUTH_PROVIDER_PLUGINS` at module level; extend `collectPluginNames` wrapper |
-| `packages/app-core/src/config/plugin-auto-enable.test.ts` | Add Polymarket auto-enable test cases |
+| `packages/app-core/src/runtime/eliza.ts` | Extend `collectPluginNames` wrapper with Polymarket env detection + short ID resolution |
+| `packages/app-core/src/runtime/eliza.test.ts` | Add Polymarket auto-enable test cases |
 
 ## Risks
 
-- **`AUTH_PROVIDER_PLUGINS` mutation:** Relies on the upstream object being mutable. If upstream freezes it (`Object.freeze`), the mutation silently fails. Mitigated by: tests verify the keys exist after mutation.
-- **Upstream adds polymarket natively:** No conflict — if upstream adds the same keys, both push the same short ID; `addToAllowlist` deduplicates.
-- **EVM already loaded:** No conflict — `Set.add` is idempotent.
+- **Upstream fixes `applyPluginAutoEnable` discard bug:** If upstream starts using the return value, Polymarket would be double-added (once by upstream, once by our wrapper). No harm — `Set.add` is idempotent.
+- **Upstream adds polymarket to `OPTIONAL_PLUGIN_MAP`:** Our short-ID resolution becomes redundant but not harmful.
+- **EVM already loaded by another path:** No conflict — `Set.add` is idempotent.
