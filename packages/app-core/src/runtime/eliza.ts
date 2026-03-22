@@ -62,6 +62,25 @@ const LEGACY_INTERNAL_CHANNEL_PLUGIN_NAMES = new Map<string, string>(
 /** Swarm / PTY paths call TEXT_TO_SPEECH; Edge TTS supplies that model with no API key. */
 const AGENT_ORCHESTRATOR_PLUGIN = "@elizaos/plugin-agent-orchestrator";
 const EDGE_TTS_PLUGIN = "@elizaos/plugin-edge-tts";
+const POLYMARKET_PLUGIN = "@elizaos/plugin-polymarket";
+const EVM_PLUGIN = "@elizaos/plugin-evm";
+
+/** Env vars that signal Polymarket credentials are configured. */
+const POLYMARKET_ENV_KEYS = [
+  "POLYMARKET_PRIVATE_KEY",
+  "CLOB_API_KEY",
+] as const;
+
+/**
+ * Short-ID-to-full-package-name resolution for Polymarket ecosystem plugins.
+ * Upstream `collectPluginNames` may place bare short IDs (e.g. "polymarket")
+ * into the plugin set via the allow list. These short IDs fail at
+ * `import("polymarket")` because `OPTIONAL_PLUGIN_MAP` doesn't map them.
+ */
+const POLYMARKET_SHORT_ID_MAP: ReadonlyArray<readonly [string, string]> = [
+  ["polymarket", POLYMARKET_PLUGIN],
+  ["evm", EVM_PLUGIN],
+];
 
 export function isMiladyEdgeTtsDisabled(
   config: Parameters<typeof upstreamCollectPluginNames>[0],
@@ -177,6 +196,28 @@ export function collectPluginNames(
   ) {
     result.add(EDGE_TTS_PLUGIN);
   }
+
+  // Polymarket: auto-enable when credentials are detected in env.
+  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some(
+    (k) => process.env[k]?.trim(),
+  );
+  if (hasPolymarketCreds) {
+    if (config?.plugins?.entries?.polymarket?.enabled !== false) {
+      result.add(POLYMARKET_PLUGIN);
+    }
+    if (config?.plugins?.entries?.evm?.enabled !== false) {
+      result.add(EVM_PLUGIN);
+    }
+  }
+
+  // Resolve bare short IDs that may arrive from the allow list or other paths.
+  for (const [shortId, fullName] of POLYMARKET_SHORT_ID_MAP) {
+    if (result.has(shortId)) {
+      result.delete(shortId);
+      result.add(fullName);
+    }
+  }
+
   syncBrandEnvAliases();
   return result;
 }
