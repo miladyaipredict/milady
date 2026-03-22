@@ -462,9 +462,39 @@ async function ensureAutonomyBootstrapContext(
   }
 }
 
+/**
+ * Env keys that Polymarket plugin actions read via `runtime.getSetting()`.
+ * The upstream getSetting wrapper only allows a hardcoded allowlist of env
+ * keys. Polymarket keys are not on it, so `getSetting("CLOB_API_URL")`
+ * returns null even when the value is in process.env. We extend the
+ * wrapper to also check these keys.
+ */
+const POLYMARKET_GETSETTING_KEYS = new Set([
+  "CLOB_API_URL",
+  "CLOB_WS_URL",
+  "CLOB_API_KEY",
+  "CLOB_API_SECRET",
+  "CLOB_API_PASSPHRASE",
+  "POLYMARKET_PRIVATE_KEY",
+]);
+
+function extendGetSettingForPolymarket(runtime: AgentRuntime): void {
+  const original = runtime.getSetting.bind(runtime);
+  runtime.getSetting = (key: string) => {
+    const result = original(key);
+    if (result !== null && result !== undefined) return result;
+    if (POLYMARKET_GETSETTING_KEYS.has(key)) {
+      const envVal = process.env[key];
+      if (envVal !== undefined && envVal.trim() !== "") return envVal;
+    }
+    return result;
+  };
+}
+
 async function repairRuntimeAfterBoot(
   runtime: AgentRuntime,
 ): Promise<AgentRuntime> {
+  extendGetSettingForPolymarket(runtime);
   await ensureRuntimeSqlCompatibility(runtime);
   await ensureMiladyTextToSpeechHandler(runtime);
   await ensureAutonomyBootstrapContext(runtime);
