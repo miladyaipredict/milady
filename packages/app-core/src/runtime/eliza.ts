@@ -66,10 +66,7 @@ const POLYMARKET_PLUGIN = "@elizaos/plugin-polymarket";
 const EVM_PLUGIN = "@elizaos/plugin-evm";
 
 /** Env vars that signal Polymarket credentials are configured. */
-const POLYMARKET_ENV_KEYS = [
-  "POLYMARKET_PRIVATE_KEY",
-  "CLOB_API_KEY",
-] as const;
+const POLYMARKET_ENV_KEYS = ["POLYMARKET_PRIVATE_KEY", "CLOB_API_KEY"] as const;
 
 /**
  * Short-ID-to-full-package-name resolution for Polymarket ecosystem plugins.
@@ -198,8 +195,8 @@ export function collectPluginNames(
   }
 
   // Polymarket: auto-enable when credentials are detected in env.
-  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some(
-    (k) => process.env[k]?.trim(),
+  const hasPolymarketCreds = POLYMARKET_ENV_KEYS.some((k) =>
+    process.env[k]?.trim(),
   );
   if (hasPolymarketCreds) {
     if (config?.plugins?.entries?.polymarket?.enabled !== false) {
