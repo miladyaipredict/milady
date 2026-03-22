@@ -835,7 +835,7 @@
   "providerswitcher.usePiDefaultModel": "Dùng model mặc định pi",
   "providerswitcher.customModelSpec": "Model tuỳ chỉnh",
   "providerswitcher.providerModelPlaceholder": "provider/model (VD: ollama/qwen2.5)",
-  "providerswitcher.elizaCloud": "Eliza Cloud",
+  "providerswitcher.elizaCloud": "Cloud",
   "providerswitcher.piAi": "Pi (pi-ai)",
   "apikeyconfig.fetchModels": "Lấy Models",
   "apikeyconfig.fetching": "Đang lấy...",

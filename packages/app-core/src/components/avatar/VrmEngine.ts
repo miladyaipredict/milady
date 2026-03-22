@@ -630,6 +630,15 @@ export class VrmEngine {
   private speaking = false;
   private speakingStartTime = 0;
   private readonly blinkController = new VrmBlinkController();
+
+  private splatCache = new Map<
+    string,
+    {
+      mesh: SparkSplatMesh;
+      worldAnchor: THREE.Vector3;
+      worldRevealRadius: number;
+    }
+  >();
   private readonly cameraManager = new VrmCameraManager();
   private emoteAction: THREE.AnimationAction | null = null;
   private emoteTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1193,8 +1202,13 @@ export class VrmEngine {
     reveal.incoming.mesh.objectModifier = undefined;
     this.refreshSplatMesh(reveal.incoming.mesh);
     if (reveal.outgoing) {
+      // Clear the modifier and refresh before hiding so the cached mesh is in a
+      // clean baseline state when it is next reused as the incoming world.
+      // Without this, stale dyno graph references on the modifier cause the
+      // second toggle to render as invisible.
       reveal.outgoing.mesh.objectModifier = undefined;
-      this.disposeSplatMesh(reveal.outgoing.mesh);
+      this.refreshSplatMesh(reveal.outgoing.mesh);
+      reveal.outgoing.mesh.visible = false;
     }
     if (this.worldReveal === reveal) {
       this.worldReveal = null;
@@ -1798,6 +1812,11 @@ export class VrmEngine {
     this.loadingAborted = true;
     this.initialized = false;
     this.settleReady();
+    // Flush the world splat cache — dispose all meshes so GPU memory is freed.
+    for (const cached of this.splatCache.values()) {
+      this.disposeSplatMesh(cached.mesh);
+    }
+    this.splatCache.clear();
     this.releaseKnownWebGpuWarningFilter?.();
     this.releaseKnownWebGpuWarningFilter = null;
     if (this.animationFrameId !== null) {
@@ -2163,33 +2182,48 @@ export class VrmEngine {
     )
       return;
     const { SplatMesh } = spark;
+    const cached = this.splatCache.get(normalizedUrl);
     let worldAnchor = new THREE.Vector3(0, 0, 0);
     let worldRevealRadius = 1;
-    const splat = new SplatMesh({
-      url: normalizedUrl,
-      constructSplats: (packedSplats) => {
-        worldAnchor = getRobustPackedSplatAnchor(packedSplats);
-        worldRevealRadius = getRobustPackedSplatRadialExtent(
-          packedSplats,
-          worldAnchor,
-        );
-      },
-    });
-    splat.frustumCulled = false;
-    splat.quaternion.identity();
-    splat.position.set(0, 0, 0);
-    splat.scale.setScalar(COMPANION_WORLD_SCALE);
-    this.scene.add(splat);
+    let splat: SparkSplatMesh;
 
-    await splat.initialized;
+    if (cached) {
+      splat = cached.mesh;
+      worldAnchor = cached.worldAnchor;
+      worldRevealRadius = cached.worldRevealRadius;
+      splat.visible = false;
+    } else {
+      splat = new SplatMesh({
+        url: normalizedUrl,
+        constructSplats: (packedSplats) => {
+          worldAnchor = getRobustPackedSplatAnchor(packedSplats);
+          worldRevealRadius = getRobustPackedSplatRadialExtent(
+            packedSplats,
+            worldAnchor,
+          );
+        },
+      });
+      splat.frustumCulled = false;
+      splat.quaternion.identity();
+      splat.position.set(0, 0, 0);
+      splat.scale.setScalar(COMPANION_WORLD_SCALE);
+      splat.visible = false;
+      this.scene.add(splat);
+    }
+
+    if (!cached) {
+      await splat.initialized;
+    }
 
     if (
       this.loadingAborted ||
       !this.scene ||
       requestId !== this.worldLoadRequestId
     ) {
-      splat.parent?.remove(splat);
-      splat.dispose();
+      if (!cached) {
+        splat.parent?.remove(splat);
+        splat.dispose();
+      }
       return;
     }
 
@@ -2201,6 +2235,15 @@ export class VrmEngine {
       -worldCenterBottom.y * COMPANION_WORLD_SCALE + worldFloorOffsetY,
       -worldCenterBottom.z * COMPANION_WORLD_SCALE,
     );
+
+    if (!cached) {
+      this.splatCache.set(normalizedUrl, {
+        mesh: splat,
+        worldAnchor,
+        worldRevealRadius,
+      });
+    }
+
     const syncToTeleport = this.revealStarted && this.teleportProgress < 0.999;
     const waitingForVrm = !outgoingWorld && !this.vrmReady;
     const incomingRevealRadius = Math.max(
@@ -2242,9 +2285,10 @@ export class VrmEngine {
           "hide",
         );
         if (!outgoingReveal) {
-          this.disposeSplatMesh(outgoingWorld);
+          outgoingWorld.visible = false;
         }
       }
+      splat.visible = true;
       this.queueWorldReveal(worldReveal, {
         outgoing: outgoingReveal,
         duration: COMPANION_WORLD_REVEAL_DURATION,
@@ -2253,7 +2297,10 @@ export class VrmEngine {
         initialProgress: syncToTeleport ? this.teleportProgress : 0,
       });
     } else {
-      this.disposeSplatMesh(outgoingWorld);
+      if (outgoingWorld) {
+        outgoingWorld.visible = false;
+      }
+      splat.visible = true;
     }
   }
   async playEmote(
@@ -3097,7 +3144,13 @@ ${isOutgoing ? "if (teleportNoise >= teleportRatio) discard;" : "if (teleportNoi
       this.sparkRenderer.apertureAngle = 0;
     }
     this.cancelWorldReveal();
-    this.disposeSplatMesh(this.worldMesh);
+    // Don't permanently dispose the worldMesh here — it may be held in
+    // splatCache and reused on the next world switch. Just hide it so it
+    // doesn't render. The cache is flushed (and meshes truly disposed) only
+    // when the engine itself is torn down via dispose().
+    if (this.worldMesh) {
+      this.worldMesh.visible = false;
+    }
     this.worldMesh = null;
   }
   private async loadAndPlayIdle(vrm: VRM): Promise<void> {

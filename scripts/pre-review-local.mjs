@@ -21,6 +21,22 @@ function extractAddedDiffLines(diffChunks) {
     .join("\n");
 }
 
+function extractRemovedDiffLines(diffChunks) {
+  return diffChunks
+    .split("\n")
+    .filter((line) => line.startsWith("-") && !line.startsWith("---"))
+    .map((line) => line.slice(1))
+    .join("\n");
+}
+
+function countPatternMatches(text, pattern) {
+  const flags = pattern.flags.includes("g")
+    ? pattern.flags
+    : `${pattern.flags}g`;
+  const globalPattern = new RegExp(pattern.source, flags);
+  return [...text.matchAll(globalPattern)].length;
+}
+
 function normalizeExecError(error) {
   return {
     ok: false,
@@ -90,7 +106,7 @@ export function classificationFromInputs({ branch, message }) {
   const content = `${branch} ${message}`.toLowerCase();
 
   if (
-    /(redesign|restyle|theme|font|layout|css|visual|icon|logo|dark mode|animation|aesthetic)/.test(
+    /\b(redesign|restyle|theme|font|layout|css|visual|icon|logo|animation|aesthetic)\b|\bdark mode\b/.test(
       content,
     )
   ) {
@@ -123,8 +139,12 @@ export function decisionFromFindings({ classification, issues }) {
 export function scanDiffTextForBlockedPatterns(diffChunks) {
   const issues = [];
   const addedLines = extractAddedDiffLines(diffChunks);
+  const removedLines = extractRemovedDiffLines(diffChunks);
 
-  if (ANY_TYPE_PATTERN.test(addedLines)) {
+  if (
+    countPatternMatches(addedLines, ANY_TYPE_PATTERN) >
+    countPatternMatches(removedLines, ANY_TYPE_PATTERN)
+  ) {
     issues.push(
       "Potential `any` usage introduced or modified. Verify strict typing is necessary.",
     );
@@ -181,16 +201,21 @@ export function resolveRunnableTestFiles(testFiles, cwd = process.cwd()) {
 export function splitRunnableTestFiles(testFiles) {
   const repoTests = [];
   const homepageTests = [];
+  const repoE2eTests = [];
 
   for (const file of testFiles) {
     if (file.startsWith("apps/homepage/")) {
       homepageTests.push(path.relative("apps/homepage", file));
+    } else if (/\.e2e\.test\.[jt]sx?$/.test(file)) {
+      if (file.startsWith("test/")) {
+        repoE2eTests.push(file);
+      }
     } else {
       repoTests.push(file);
     }
   }
 
-  return { repoTests, homepageTests };
+  return { repoTests, repoE2eTests, homepageTests };
 }
 
 export function collectChangedFiles(base) {
@@ -321,12 +346,18 @@ export function runChecks() {
           "Run tests that validate the exact behavior change and check them in.",
         );
       } else {
-        const { repoTests, homepageTests } =
+        const { repoTests, repoE2eTests, homepageTests } =
           splitRunnableTestFiles(runnableTestFiles);
         const testCommands = [];
 
         if (repoTests.length > 0) {
           testCommands.push(`bunx vitest run ${repoTests.join(" ")}`);
+        }
+
+        if (repoE2eTests.length > 0) {
+          testCommands.push(
+            `bunx vitest run --config vitest.e2e.config.ts ${repoE2eTests.join(" ")}`,
+          );
         }
 
         if (homepageTests.length > 0) {

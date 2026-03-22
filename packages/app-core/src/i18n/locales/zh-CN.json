@@ -835,7 +835,7 @@
   "providerswitcher.usePiDefaultModel": "使用 pi 默认模型",
   "providerswitcher.customModelSpec": "自定义模型规格",
   "providerswitcher.providerModelPlaceholder": "provider/model（例如 ollama/qwen2.5）",
-  "providerswitcher.elizaCloud": "Eliza Cloud",
+  "providerswitcher.elizaCloud": "Cloud",
   "providerswitcher.piAi": "Pi（pi-ai）",
   "apikeyconfig.fetchModels": "获取模型",
   "apikeyconfig.fetching": "获取中...",

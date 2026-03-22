@@ -835,7 +835,7 @@
   "providerswitcher.usePiDefaultModel": "pi 기본 모델 사용",
   "providerswitcher.customModelSpec": "사용자 지정 모델 사양",
   "providerswitcher.providerModelPlaceholder": "provider/model (예: ollama/qwen2.5)",
-  "providerswitcher.elizaCloud": "Eliza Cloud",
+  "providerswitcher.elizaCloud": "Cloud",
   "providerswitcher.piAi": "Pi (pi-ai)",
   "apikeyconfig.fetchModels": "모델 가져오기",
   "apikeyconfig.fetching": "가져오는 중...",

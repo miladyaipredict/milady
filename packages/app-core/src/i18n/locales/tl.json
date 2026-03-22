@@ -835,7 +835,7 @@
   "providerswitcher.usePiDefaultModel": "Gamitin ang pi default model",
   "providerswitcher.customModelSpec": "Custom model spec",
   "providerswitcher.providerModelPlaceholder": "provider/model (hal. ollama/qwen2.5)",
-  "providerswitcher.elizaCloud": "Eliza Cloud",
+  "providerswitcher.elizaCloud": "Cloud",
   "providerswitcher.piAi": "Pi (pi-ai)",
   "apikeyconfig.fetchModels": "Kunin ang mga Model",
   "apikeyconfig.fetching": "Kinukuha...",

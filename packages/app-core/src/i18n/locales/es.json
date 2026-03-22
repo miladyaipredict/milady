@@ -835,7 +835,7 @@
   "providerswitcher.usePiDefaultModel": "Usar modelo predeterminado de pi",
   "providerswitcher.customModelSpec": "Especificación de modelo personalizada",
   "providerswitcher.providerModelPlaceholder": "provider/model (p. ej. ollama/qwen2.5)",
-  "providerswitcher.elizaCloud": "Eliza Cloud",
+  "providerswitcher.elizaCloud": "Cloud",
   "providerswitcher.piAi": "Pi (pi-ai)",
   "apikeyconfig.fetchModels": "Obtener modelos",
   "apikeyconfig.fetching": "Obteniendo...",
